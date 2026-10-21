@@ -229,6 +229,26 @@ create trigger profiles_updated_at before update on public.profiles
 for each row execute function public.set_updated_at();
 create trigger provider_profiles_updated_at before update on public.provider_profiles
 for each row execute function public.set_updated_at();
+
+-- A provider must never be able to self-approve by editing their own profile.
+create or replace function public.guard_provider_verification_fields()
+returns trigger language plpgsql set search_path = ''
+as $
+begin
+  if not public.has_role('management') and (
+    new.verification_status is distinct from old.verification_status
+    or new.verification_note is distinct from old.verification_note
+    or new.verified_at is distinct from old.verified_at
+  ) then
+    raise exception 'Only management can change provider verification fields';
+  end if;
+  return new;
+end;
+$;
+
+create trigger provider_verification_fields_guard
+before update on public.provider_profiles
+for each row execute function public.guard_provider_verification_fields();
 create trigger categories_updated_at before update on public.service_categories
 for each row execute function public.set_updated_at();
 create trigger jobs_updated_at before update on public.jobs
