@@ -94,7 +94,7 @@ function App() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileMenu ? "sidebar-open" : ""}`}>
-        <div className="brand-lockup"><div className="brand-mark"><Activity size={22} strokeWidth={2.5} /></div><div><strong>findvia<span>.</span></strong><small>PROVIDER PARTNER</small></div><IconButton label="Close menu" className="sidebar-close" onClick={() => setMobileMenu(false)}><X size={20} /></IconButton></div>
+        <div className="brand-lockup"><div className="brand-mark"><Activity size={22} strokeWidth={2.5} /></div><div><strong>FindVia</strong><small>PROVIDER APP</small></div><IconButton label="Close menu" className="sidebar-close" onClick={() => setMobileMenu(false)}><X size={20} /></IconButton></div>
         <div className="workspace-label">WORKSPACE</div>
         <nav className="side-nav" aria-label="Main navigation">
           {navItems.map(item => { const Icon = item.icon; return <button key={item.id} className={`nav-link ${page === item.id ? "active" : ""}`} onClick={() => go(item.id)}><Icon size={19} strokeWidth={1.9} /><span>{item.label}</span>{item.id === "jobs" && <span className="nav-count">3</span>}</button>; })}
