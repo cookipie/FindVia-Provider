@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { supabase } from "./lib/supabase";
 import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight, Bell, BriefcaseBusiness,
   CalendarDays, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, CreditCard, FileText,
@@ -58,6 +59,9 @@ function JobCard({ job, onOpen, onOffer, language }) {
 }
 
 function App() {
+  const [authSession, setAuthSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authMessage, setAuthMessage] = useState("");
   const [page, setPage] = useState("home");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [query, setQuery] = useState("");
@@ -82,6 +86,28 @@ function App() {
   const [submittedOffers, setSubmittedOffers] = useState(() => readPreviewState("submittedOffers", []));
   const [walletRequests, setWalletRequests] = useState(() => readPreviewState("walletRequests", []));
   const [providerAvailable, setProviderAvailable] = useState(() => readPreviewState("providerAvailable", true));
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!alive) return;
+      if (error) setAuthMessage("Could not restore your session. Please sign in again.");
+      setAuthSession(data?.session ?? null);
+      setAuthLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthSession(session ?? null);
+      setAuthLoading(false);
+      if (session?.user) setAuthMessage("");
+    });
+    return () => {
+      alive = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+  useEffect(() => {
+    const fullName = authSession?.user?.user_metadata?.full_name;
+    if (fullName) setProfileName(fullName);
+  }, [authSession?.user?.id]);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileName", JSON.stringify(profileName)); } catch {} }, [profileName]);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileService", JSON.stringify(profileService)); } catch {} }, [profileService]);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileSkills", JSON.stringify(profileSkills)); } catch {} }, [profileSkills]);
@@ -115,6 +141,13 @@ function App() {
     notify("Demo only: recharge request preview saved.");
   };
 
+  if (authLoading) {
+    return <div className="account-loading"><div className="brand-mark"><Activity size={24} /></div><h1>FindVia Provider</h1><p>Restoring your secure session…</p></div>;
+  }
+  if (!authSession) {
+    return <AccountAccessPage language={language} authMessage={authMessage} setAuthMessage={setAuthMessage} />;
+  }
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileMenu ? "sidebar-open" : ""}`}>
@@ -145,7 +178,7 @@ function App() {
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} />}
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} language={language} notify={notify} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} language={language} />}
-          {page === "profile" && !selectedJob && <ProfilePage name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
+          {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
           {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
           {page === "notifications" && <NotificationsPage go={go} language={language} />}
@@ -209,34 +242,112 @@ function WalletPage({ onRecharge, requests, language }) {
   return <section className="page-section"><div className="page-heading"><div><span className="eyebrow">YOUR MONEY, CLEARLY TRACKED</span><h1>{hi ? "वॉलेट और कमाई" : "Wallet & earnings"}</h1><p>{hi ? "वॉलेट गतिविधि और हर लेन-देन का विवरण देखें।" : "See your wallet activity and understand each transaction."}</p></div><div className="heading-icon"><Wallet size={24} /></div></div><div className="wallet-hero"><div className="wallet-topline"><span><Wallet size={16} /> PROVIDER WALLET</span><StatusPill tone="warning">Preview mode</StatusPill></div><span className="wallet-label">{hi ? "उपलब्ध वॉलेट बैलेंस" : "Available wallet balance"}</span><strong className="wallet-balance">₹0.00</strong><p>{hi ? "सुरक्षित खाता जुड़ने के बाद वास्तविक बैलेंस दिखेगा।" : "Real balance will appear after secure account connection."}</p><button className="button wallet-button" onClick={onRecharge}><ArrowDownLeft size={16} /> {hi ? "रिचार्ज अनुरोध" : "Request recharge"}</button><div className="wallet-decoration"><div /><div /><div /></div></div><div className="wallet-stats"><div className="wallet-stat"><span><ArrowUpRight size={16} /> {hi ? "दिया गया कमीशन" : "Commission paid"}</span><strong>₹0.00</strong><small>Preview only</small></div><div className="wallet-stat"><span><IndianRupee size={16} /> {hi ? "सेवा से कमाई" : "Service earnings"}</span><strong>₹0.00</strong><small>Jobs completed</small></div><div className="wallet-stat"><span><CreditCard size={16} /> {hi ? "रिचार्ज अनुरोध" : "Recharge requests"}</span><strong>{requests.length.toString().padStart(2, "0")}</strong><small>Saved on this device</small></div></div><div className="panel transaction-panel"><div className="section-heading"><div><h2>{hi ? "हाल की गतिविधि" : "Recent activity"}</h2><p>{hi ? "आपके वॉलेट का लेजर यहाँ दिखेगा।" : "Your wallet ledger will appear here."}</p></div><FileText size={21} className="muted-icon" /></div>{requests.length ? requests.slice().reverse().map(item => <div className="transaction-row" key={item.id}><div className="transaction-icon"><ArrowDownLeft size={17} /></div><div className="transaction-copy"><strong>{hi ? "रिचार्ज अनुरोध (डेमो)" : "Recharge request preview"}</strong><span>{item.utr ? `UTR: ${item.utr}` : (hi ? "UTR नहीं जोड़ा" : "No UTR added")} · {hi ? "प्रबंधन को नहीं भेजा गया" : "Not sent to management"}</span></div><strong className="transaction-amount">₹{item.amount.toLocaleString("en-IN")}</strong><StatusPill tone="warning">{hi ? "डेमो" : "Preview"}</StatusPill></div>) : <div className="empty-state compact-empty"><div className="empty-icon"><Activity size={22} /></div><strong>No transactions yet</strong><p>When your account is connected, wallet activity will show up here.</p></div>}</div><div className="security-footnote"><ShieldCheck size={17} /><p><strong>Security first.</strong> Wallet balances and commission records will be calculated on the server. This preview cannot accept or move real money.</p></div></section>;
 }
 
-function ProfilePage({ name, setName, service, setService, skills, setSkills, areas, setAreas, language, setLanguage, notify, go }) {
+function ProfilePage({ onSignOut, name, setName, service, setService, skills, setSkills, areas, setAreas, language, setLanguage, notify, go }) {
   const hi = language === "Hindi";
   const [photo, setPhoto] = useState("");
   useEffect(() => () => { if (photo.startsWith("blob:")) URL.revokeObjectURL(photo); }, [photo]);
-  return <section className="page-section"><div className="page-heading"><div><span className="eyebrow">{hi ? "आपकी पेशेवर पहचान" : "YOUR PROFESSIONAL IDENTITY"}</span><h1>{hi ? "मेरी प्रोफ़ाइल" : "My profile"}</h1><p>{hi ? "सही अवसरों के लिए अपने कौशल और विवरण तैयार रखें।" : "Keep your skills and details ready for the right opportunities."}</p></div><div className="heading-icon"><Settings2 size={24} /></div></div><div className="profile-layout"><div className="panel profile-card"><div className="profile-cover" /><div className="profile-avatar">{photo ? <img src={photo} alt={hi ? "प्रोफ़ाइल फ़ोटो पूर्वावलोकन" : "Profile photo preview"} /> : (name.trim().split(/\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV")}</div><label className="photo-picker" htmlFor="provider-photo">{hi ? "फ़ोटो चुनें" : "Choose photo"} <input id="provider-photo" type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (file) setPhoto(URL.createObjectURL(file)); }} /></label><div className="profile-intro"><h2>{name || (hi ? "आपका नाम" : "Your name")}</h2><p><MapPin size={14} /> Jaipur, Rajasthan · {hi ? "डेमो प्रोफ़ाइल" : "Demo profile"}</p><StatusPill tone="warning">{hi ? "सत्यापन जुड़ा नहीं" : "Verification not connected"}</StatusPill></div><div className="profile-progress"><div><span>{hi ? "प्रोफ़ाइल पूर्णता" : "Profile completeness"}</span><strong>{hi ? "पूर्वावलोकन" : "Preview"}</strong></div><div className="progress-track"><span style={{ width: "45%" }} /></div><small>{hi ? "सेटअप के बाद सत्यापन और खाता विवरण सक्रिय होंगे।" : "Verification and account details will be enabled after setup."}</small></div></div><div className="panel profile-form"><div className="section-heading"><div><h2>{hi ? "मूल जानकारी" : "Basic information"}</h2><p>{hi ? "ये जानकारी अभी केवल इस पूर्वावलोकन में बदलती है।" : "These fields currently update only this preview."}</p></div></div><label htmlFor="provider-name">{hi ? "पूरा नाम" : "Full name"}</label><input className="form-control" id="provider-name" value={name} onChange={event => setName(event.target.value)} maxLength="70" /><label htmlFor="provider-service">{hi ? "मुख्य सेवा" : "Main service"}</label><select className="form-control" id="provider-service" value={service} onChange={event => setService(event.target.value)}><option>Plumbing</option><option>Electrical</option><option>AC repair</option><option>Carpentry</option><option>Painting</option><option>Masonry</option><option>Appliance repair</option><option>Other</option></select><label htmlFor="provider-language">{hi ? "ऐप की भाषा" : "App language"}</label><select className="form-control" id="provider-language" value={language} onChange={event => setLanguage(event.target.value)}><option>English</option><option>Hindi</option></select><label>{hi ? "आपके कौशल" : "Your skills"}</label><div className="choice-chip-grid">{["Plumbing","Electrical","AC repair","Carpentry","Painting","Appliance repair"].map(skill => <label className={`choice-chip ${skills.includes(skill) ? "choice-chip-selected" : ""}`} key={skill}><input type="checkbox" checked={skills.includes(skill)} onChange={event => setSkills(current => event.target.checked ? [...current, skill] : current.filter(item => item !== skill))}/><span>{skill}</span></label>)}</div><label>{hi ? "सेवा क्षेत्र" : "Service areas"}</label><div className="choice-chip-grid">{["Vaishali Nagar","Mansarovar","Jagatpura","Malviya Nagar","C-Scheme"].map(area => <label className={`choice-chip ${areas.includes(area) ? "choice-chip-selected" : ""}`} key={area}><input type="checkbox" checked={areas.includes(area)} onChange={event => setAreas(current => event.target.checked ? [...current, area] : current.filter(item => item !== area))}/><span>{area}</span></label>)}</div><button className="button button-primary profile-save" onClick={() => notify(hi ? "जानकारी इस डिवाइस पर सहेजी गई।" : "Preview saved on this device.")}>{hi ? "जानकारी सहेजें" : "Save profile"} <Check size={16} /></button><p className="language-help"><span>文</span> {language === "Hindi" ? "भाषा बदलने के लिए ऊपर हेडर में हिंदी / English बटन दबाएँ।" : "Use the Hindi / English button in the top header to change app language."}</p><div className="profile-info-note"><ShieldCheck size={17} /><span>{hi ? "Supabase जुड़ने के बाद निजी जानकारी और दस्तावेज़ सुरक्षित रूप से रखे जाएंगे।" : "Personal details and documents will be stored securely after Supabase is configured."}</span></div></div></div><div className="panel profile-settings"><button className="settings-row settings-button" onClick={() => go("verification")}><span className="settings-icon"><FileText size={18} /></span><div><strong>{hi ? "सत्यापन दस्तावेज़" : "Verification documents"}</strong><p>{hi ? "पहचान और कौशल के दस्तावेज़" : "Identity and skill documents"}</p></div><StatusPill tone="warning">{hi ? "जुड़ा नहीं" : "Not connected"}</StatusPill><ArrowRight size={17} /></button><button className="settings-row settings-button" onClick={() => go("notifications")}><span className="settings-icon"><Bell size={18} /></span><div><strong>{hi ? "सूचनाएँ" : "Notifications"}</strong><p>{hi ? "काम और वॉलेट अपडेट" : "Job updates and wallet activity"}</p></div><ArrowRight size={17} /></button><button className="settings-row settings-button" onClick={() => go("account")}><span className="settings-icon"><ShieldCheck size={18} /></span><div><strong>{hi ? "खाते में प्रवेश" : "Account access"}</strong><p>{hi ? "साइन इन और खाता सेटअप पूर्वावलोकन" : "Sign in and account setup preview"}</p></div><ArrowRight size={17} /></button><button className="settings-row settings-button" onClick={() => go("support")}><span className="settings-icon"><CircleHelp size={18} /></span><div><strong>{hi ? "मदद और सहायता" : "Help & support"}</strong><p>{hi ? "प्रदाता खाते के लिए सहायता पाएँ" : "Get help with your provider account"}</p></div><ArrowRight size={17} /></button></div></section>;
+  return <section className="page-section"><div className="page-heading"><div><span className="eyebrow">{hi ? "आपकी पेशेवर पहचान" : "YOUR PROFESSIONAL IDENTITY"}</span><h1>{hi ? "मेरी प्रोफ़ाइल" : "My profile"}</h1><p>{hi ? "सही अवसरों के लिए अपने कौशल और विवरण तैयार रखें।" : "Keep your skills and details ready for the right opportunities."}</p></div><div className="heading-icon"><Settings2 size={24} /></div></div><div className="profile-layout"><div className="panel profile-card"><div className="profile-cover" /><div className="profile-avatar">{photo ? <img src={photo} alt={hi ? "प्रोफ़ाइल फ़ोटो पूर्वावलोकन" : "Profile photo preview"} /> : (name.trim().split(/\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV")}</div><label className="photo-picker" htmlFor="provider-photo">{hi ? "फ़ोटो चुनें" : "Choose photo"} <input id="provider-photo" type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (file) setPhoto(URL.createObjectURL(file)); }} /></label><div className="profile-intro"><h2>{name || (hi ? "आपका नाम" : "Your name")}</h2><p><MapPin size={14} /> Jaipur, Rajasthan · {hi ? "डेमो प्रोफ़ाइल" : "Demo profile"}</p><StatusPill tone="warning">{hi ? "सत्यापन जुड़ा नहीं" : "Verification not connected"}</StatusPill></div><div className="profile-progress"><div><span>{hi ? "प्रोफ़ाइल पूर्णता" : "Profile completeness"}</span><strong>{hi ? "पूर्वावलोकन" : "Preview"}</strong></div><div className="progress-track"><span style={{ width: "45%" }} /></div><small>{hi ? "सेटअप के बाद सत्यापन और खाता विवरण सक्रिय होंगे।" : "Verification and account details will be enabled after setup."}</small></div></div><div className="panel profile-form"><div className="section-heading"><div><h2>{hi ? "मूल जानकारी" : "Basic information"}</h2><p>{hi ? "ये जानकारी अभी केवल इस पूर्वावलोकन में बदलती है।" : "These fields currently update only this preview."}</p></div></div><label htmlFor="provider-name">{hi ? "पूरा नाम" : "Full name"}</label><input className="form-control" id="provider-name" value={name} onChange={event => setName(event.target.value)} maxLength="70" /><label htmlFor="provider-service">{hi ? "मुख्य सेवा" : "Main service"}</label><select className="form-control" id="provider-service" value={service} onChange={event => setService(event.target.value)}><option>Plumbing</option><option>Electrical</option><option>AC repair</option><option>Carpentry</option><option>Painting</option><option>Masonry</option><option>Appliance repair</option><option>Other</option></select><label htmlFor="provider-language">{hi ? "ऐप की भाषा" : "App language"}</label><select className="form-control" id="provider-language" value={language} onChange={event => setLanguage(event.target.value)}><option>English</option><option>Hindi</option></select><label>{hi ? "आपके कौशल" : "Your skills"}</label><div className="choice-chip-grid">{["Plumbing","Electrical","AC repair","Carpentry","Painting","Appliance repair"].map(skill => <label className={`choice-chip ${skills.includes(skill) ? "choice-chip-selected" : ""}`} key={skill}><input type="checkbox" checked={skills.includes(skill)} onChange={event => setSkills(current => event.target.checked ? [...current, skill] : current.filter(item => item !== skill))}/><span>{skill}</span></label>)}</div><label>{hi ? "सेवा क्षेत्र" : "Service areas"}</label><div className="choice-chip-grid">{["Vaishali Nagar","Mansarovar","Jagatpura","Malviya Nagar","C-Scheme"].map(area => <label className={`choice-chip ${areas.includes(area) ? "choice-chip-selected" : ""}`} key={area}><input type="checkbox" checked={areas.includes(area)} onChange={event => setAreas(current => event.target.checked ? [...current, area] : current.filter(item => item !== area))}/><span>{area}</span></label>)}</div><button className="button button-primary profile-save" onClick={() => notify(hi ? "जानकारी इस डिवाइस पर सहेजी गई।" : "Preview saved on this device.")}>{hi ? "जानकारी सहेजें" : "Save profile"} <Check size={16} /></button><p className="language-help"><span>文</span> {language === "Hindi" ? "भाषा बदलने के लिए ऊपर हेडर में हिंदी / English बटन दबाएँ।" : "Use the Hindi / English button in the top header to change app language."}</p><div className="profile-info-note"><ShieldCheck size={17} /><span>{hi ? "Supabase जुड़ने के बाद निजी जानकारी और दस्तावेज़ सुरक्षित रूप से रखे जाएंगे।" : "Personal details and documents will be stored securely after Supabase is configured."}</span></div></div></div><div className="panel profile-settings"><button className="settings-row settings-button" onClick={() => go("verification")}><span className="settings-icon"><FileText size={18} /></span><div><strong>{hi ? "सत्यापन दस्तावेज़" : "Verification documents"}</strong><p>{hi ? "पहचान और कौशल के दस्तावेज़" : "Identity and skill documents"}</p></div><StatusPill tone="warning">{hi ? "जुड़ा नहीं" : "Not connected"}</StatusPill><ArrowRight size={17} /></button><button className="settings-row settings-button" onClick={() => go("notifications")}><span className="settings-icon"><Bell size={18} /></span><div><strong>{hi ? "सूचनाएँ" : "Notifications"}</strong><p>{hi ? "काम और वॉलेट अपडेट" : "Job updates and wallet activity"}</p></div><ArrowRight size={17} /></button><button className="settings-row settings-button" onClick={() => go("account")}><span className="settings-icon"><ShieldCheck size={18} /></span><div><strong>{hi ? "खाते में प्रवेश" : "Account access"}</strong><p>{hi ? "साइन इन और खाता सेटअप पूर्वावलोकन" : "Sign in and account setup preview"}</p></div><ArrowRight size={17} /></button><button className="settings-row settings-button signout-row" onClick={onSignOut}><span className="settings-icon"><ArrowUpRight size={18} /></span><div><strong>{hi ? "लॉगआउट" : "Sign out"}</strong><p>{hi ? "इस डिवाइस पर अपने खाते से बाहर निकलें" : "Sign out of your account on this device"}</p></div><ArrowRight size={17} /></button><button className="settings-row settings-button" onClick={() => go("support")}><span className="settings-icon"><CircleHelp size={18} /></span><div><strong>{hi ? "मदद और सहायता" : "Help & support"}</strong><p>{hi ? "प्रदाता खाते के लिए सहायता पाएँ" : "Get help with your provider account"}</p></div><ArrowRight size={17} /></button></div></section>;
 }
 
 
 
-function AccountAccessPage({ go, notify, language }) {
+function AccountAccessPage({ language, authMessage, setAuthMessage }) {
   const hi = language === "Hindi";
   const [mode, setMode] = useState("signin");
-  const [phone, setPhone] = useState("");
-  const [step, setStep] = useState("details");
-  const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
-  const validPhone = /^[6-9][0-9]{9}$/.test(phone);
-  const submitDetails = event => {
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
+
+  const submit = async event => {
     event.preventDefault();
-    if (!validPhone) { notify("Enter a valid 10-digit Indian mobile number."); return; }
-    if (mode === "signup" && !name.trim()) { notify("Enter your full name to continue."); return; }
-    setStep("otp");
+    setMessage("");
+    setAuthMessage("");
+    if (mode === "signup" && !name.trim()) {
+      setMessage(hi ? "कृपया अपना पूरा नाम लिखें।" : "Please enter your full name.");
+      return;
+    }
+    if (mode === "signup" && phone && !/^[6-9][0-9]{9}$/.test(phone)) {
+      setMessage(hi ? "10 अंकों का सही भारतीय मोबाइल नंबर लिखें।" : "Enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+    if (password.length < 8) {
+      setMessage(hi ? "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।" : "Password must be at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim().toLowerCase(),
+          password,
+          options: {
+            data: { full_name: name.trim(), phone: phone || null },
+            emailRedirectTo: window.location.origin + window.location.pathname
+          }
+        });
+        if (error) throw error;
+        if (data.session) {
+          setMessage(hi ? "खाता बन गया। आपका कार्यक्षेत्र खुल रहा है…" : "Account created. Opening your workspace…");
+        } else {
+          setNeedsEmailConfirm(true);
+          setMessage(hi ? "खाता बनाने का अनुरोध सफल है। अपना ईमेल खोलकर confirmation link पर टैप करें, फिर यहाँ sign in करें।" : "Signup request received. Open your email and tap the confirmation link, then sign in here.");
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password
+        });
+        if (error) throw error;
+        setMessage(hi ? "साइन इन सफल। आपका कार्यक्षेत्र खुल रहा है…" : "Signed in. Opening your workspace…");
+      }
+    } catch (error) {
+      const raw = error?.message || "Authentication failed.";
+      setMessage(raw);
+    } finally {
+      setBusy(false);
+    }
   };
-  const verifyPreview = event => {
-    event.preventDefault();
-    notify("Preview only: real SMS OTP verification is not connected.");
-  };
-  return <section className="page-section account-page"><button className="back-link" onClick={() => go("profile")}>← {hi ? "प्रोफ़ाइल पर वापस" : "Back to profile"}</button><div className="account-layout"><div className="account-brand"><div className="account-brand-icon"><Activity size={30} /></div><span className="eyebrow">FINDVIA PROVIDER</span><h1>{hi ? "आपका काम, अब आसान।" : "Your work, made simpler."}</h1><p>{hi ? "ऑफ़र, चुने गए काम और कमाई को एक सुरक्षित जगह पर संभालें।" : "Sign in to manage offers, matched jobs and earnings in one secure place."}</p><div className="account-benefit"><ShieldCheck size={18} /><span>{hi ? "ग्राहक द्वारा चुने जाने तक संपर्क विवरण निजी रहते हैं।" : "Contact details stay private until a customer selects you."}</span></div><div className="account-benefit"><Wallet size={18} /><span>{hi ? "वॉलेट और कमीशन अपडेट सुरक्षित रूप से सत्यापित होते हैं।" : "Wallet and commission updates are verified securely."}</span></div></div><div className="panel account-form-panel"><div className="account-mode"><button className={mode === "signin" ? "active" : ""} onClick={() => {setMode("signin");setStep("details");}}>{hi ? "साइन इन" : "Sign in"}</button><button className={mode === "signup" ? "active" : ""} onClick={() => {setMode("signup");setStep("details");}}>{hi ? "खाता बनाएँ" : "Create account"}</button></div><span className="eyebrow">{step === "details" ? (hi ? "स्वागत है" : "WELCOME BACK") : (hi ? "मोबाइल सत्यापन" : "PHONE VERIFICATION")}</span><h2>{step === "details" ? (mode === "signin" ? "Sign in to FindVia" : "Create your provider account") : "Enter verification code"}</h2><p>{step === "details" ? "Use your mobile number to continue." : `A real OTP will be sent to +91 ${phone} after authentication is connected.`}</p>{step === "details" ? <form onSubmit={submitDetails}>{mode === "signup" && <><label htmlFor="account-name">{hi ? "पूरा नाम" : "Full name"}</label><input className="form-control" id="account-name" value={name} onChange={e=>setName(e.target.value)} placeholder={hi ? "अपना नाम लिखें" : "Enter your name"} maxLength="70" required /></>}<label htmlFor="account-phone">{hi ? "मोबाइल नंबर" : "Mobile number"}</label><div className="phone-field"><span>+91</span><input id="account-phone" inputMode="numeric" autoComplete="tel-national" value={phone} onChange={e=>setPhone(e.target.value.replace(/\D/g,"").slice(0,10))} placeholder={hi ? "10 अंकों का मोबाइल नंबर" : "10-digit mobile number"} required /></div><button className="button button-primary full-button" type="submit">{hi ? "आगे बढ़ें" : "Continue"} <ArrowRight size={16} /></button><div className="preview-notice account-notice"><ShieldCheck size={16} /><span>{hi ? "केवल डेमो। SMS नहीं भेजा जाता और खाता नहीं बनता।" : "Preview only. No SMS is sent and no account is created."}</span></div></form> : <form onSubmit={verifyPreview}><label htmlFor="account-otp">{hi ? "6 अंकों का OTP" : "6-digit OTP"}</label><input className="form-control otp-input" id="account-otp" inputMode="numeric" autoComplete="one-time-code" value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g,"").slice(0,6))} placeholder={hi ? "OTP दर्ज करें" : "Enter OTP"} maxLength="6" required /><button className="button button-primary full-button" type="submit">{hi ? "नंबर सत्यापित करें" : "Verify number"} <ShieldCheck size={16} /></button><button type="button" className="text-button account-back" onClick={()=>setStep("details")}>{hi ? "मोबाइल नंबर बदलें" : "Change mobile number"}</button></form>}<button className="text-button account-preview-link" onClick={()=>go("home")}>{hi ? "डेमो वर्कस्पेस खोलें" : "Continue to preview workspace"} <ArrowRight size={15} /></button></div></div></section>;
+
+  return <section className="page-section account-page">
+    <div className="account-layout">
+      <div className="account-brand">
+        <div className="account-brand-icon"><Activity size={30} /></div>
+        <span className="eyebrow">FINDVIA PROVIDER</span>
+        <h1>{hi ? "आपका काम, अब आसान।" : "Your work, made simpler."}</h1>
+        <p>{hi ? "अपने खाते से सुरक्षित रूप से प्रवेश करें और अपने काम को संभालें।" : "Create your secure account to manage your provider profile and work."}</p>
+        <div className="account-benefit"><ShieldCheck size={18} /><span>{hi ? "ग्राहक द्वारा चुने जाने तक संपर्क विवरण निजी रहते हैं।" : "Contact details should stay private until a customer selects you."}</span></div>
+        <div className="account-benefit"><Wallet size={18} /><span>{hi ? "एक ही खाते से आगे चलकर वॉलेट और काम संभालें।" : "Use one account for your profile, jobs and wallet as features go live."}</span></div>
+      </div>
+      <div className="panel account-form-panel">
+        <div className="account-mode">
+          <button type="button" className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "लॉगिन" : "Log in"}</button>
+          <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "नया खाता" : "Sign up"}</button>
+        </div>
+        <span className="eyebrow">{mode === "signin" ? (hi ? "वापसी पर स्वागत है" : "WELCOME BACK") : (hi ? "अपना खाता बनाएँ" : "CREATE YOUR ACCOUNT")}</span>
+        <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
+        <p>{hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely."}</p>
+        <form onSubmit={submit}>
+          {mode === "signup" && <>
+            <label htmlFor="auth-full-name">{hi ? "पूरा नाम" : "Full name"}</label>
+            <input className="form-control" id="auth-full-name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} maxLength="70" required />
+            <label htmlFor="auth-phone">{hi ? "मोबाइल नंबर (वैकल्पिक)" : "Mobile number (optional)"}</label>
+            <div className="phone-field"><span>+91</span><input id="auth-phone" inputMode="numeric" autoComplete="tel-national" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder={hi ? "10 अंकों का नंबर" : "10-digit number"} /></div>
+          </>}
+          <label htmlFor="auth-email">{hi ? "ईमेल" : "Email address"}</label>
+          <input className="form-control" id="auth-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+          <label htmlFor="auth-password">{hi ? "पासवर्ड" : "Password"}</label>
+          <input className="form-control" id="auth-password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength="8" value={password} onChange={e => setPassword(e.target.value)} required />
+          <button className="button button-primary full-button" type="submit" disabled={busy}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : (mode === "signin" ? (hi ? "लॉगिन करें" : "Log in") : (hi ? "खाता बनाएँ" : "Create account"))} <ArrowRight size={16} /></button>
+        </form>
+        {(message || authMessage) && <div className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status">{message || authMessage}</div>}
+        <p className="account-security-note"><ShieldCheck size={15} /> {hi ? "पासवर्ड Supabase Auth द्वारा सुरक्षित रूप से संभाला जाता है।" : "Passwords are handled securely by Supabase Auth; they are not stored in this app."}</p>
+      </div>
+    </div>
+  </section>;
 }
 
 function VerificationPage({ notify, go, language }) {
