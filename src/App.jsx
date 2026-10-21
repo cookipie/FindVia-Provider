@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight, Bell, BriefcaseBusiness,
-  CalendarDays, Check, ChevronDown, CircleHelp, Clock3, CreditCard, FileText,
-  Filter, Hammer, Home, IndianRupee, MapPin, Menu, MessageCircle, Search,
+  CalendarDays, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, CreditCard, FileText,
+  Filter, Hammer, Home, IndianRupee, MapPin, Menu, MessageCircle, Search, ClipboardList,
   Settings2, ShieldCheck, Sparkles, Wallet, Wrench, X, Zap
 } from "lucide-react";
 
@@ -15,6 +15,7 @@ const jobsSeed = [
 const navItems = [
   { id: "home", label: "Home", icon: Home },
   { id: "jobs", label: "Jobs", icon: BriefcaseBusiness },
+  { id: "work", label: "My Work", icon: ClipboardList },
   { id: "wallet", label: "Wallet", icon: Wallet },
   { id: "profile", label: "Profile", icon: Settings2 }
 ];
@@ -121,6 +122,7 @@ function App() {
           {page === "jobs" && !selectedJob && <section className="page-section"><div className="page-heading"><div><span className="eyebrow">FIND YOUR NEXT JOB</span><h1>Job requests</h1><p>Explore work that matches your skills and service area.</p></div><div className="heading-icon"><BriefcaseBusiness size={23} /></div></div><div className="filter-row"><div className="search-field"><Search size={18} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search jobs or areas" aria-label="Search jobs or areas" /><kbd>/</kbd></div><button className={`button button-secondary filter-button ${filterOpen ? "filter-active" : ""}`} aria-expanded={filterOpen} onClick={() => setFilterOpen(open => !open)}><Filter size={16} /> Filters{categoryFilter !== "All categories" && <span className="filter-dot" />}</button></div>{filterOpen && <div className="filter-panel"><label htmlFor="job-category-filter">Service category</label><select id="job-category-filter" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}><option>All categories</option>{[...new Set(jobsSeed.map(job => job.category))].map(category => <option key={category}>{category}</option>)}</select><button className="text-button" onClick={() => { setCategoryFilter("All categories"); setQuery(""); }}>Clear filters</button></div>}<div className="tabs" role="tablist" aria-label="Job filters">{["Available", "My offers"].map(tab => <button role="tab" aria-selected={jobTab === tab} className={jobTab === tab ? "selected" : ""} key={tab} onClick={() => setJobTab(tab)}>{tab}{tab === "My offers" && submittedOffers.length > 0 && <span className="tab-count">{submittedOffers.length}</span>}</button>)}</div><div className="section-subheading"><strong>{jobTab === "Available" ? "Recommended for you" : "Offers you sent"}</strong><span>{filteredJobs.length} {filteredJobs.length === 1 ? "job" : "jobs"}</span></div>{filteredJobs.length ? <div className="job-list">{filteredJobs.map(job => <JobCard key={job.id} job={job} onOpen={setSelectedJob} onOffer={setOfferJob} />)}</div> : <div className="empty-state"><Search size={25} /><strong>No jobs found</strong><p>Try a different search or check available jobs.</p><button className="button button-secondary" onClick={() => { setQuery(""); setCategoryFilter("All categories"); setJobTab("Available"); }}>Clear filters</button></div>}</section>}
 
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} />}
+          {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} />}
           {page === "profile" && !selectedJob && <ProfilePage name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} language={language} setLanguage={setLanguage} notify={notify} />}
         </div>
@@ -154,6 +156,23 @@ function Metric({ icon: Icon, label, value, note, tone }) {
 function JobDetails({ job, onBack, onOffer }) {
   const Icon = job.icon;
   return <section className="page-section"><button className="back-link" onClick={onBack}>← Back to jobs</button><div className="page-heading"><div><span className="eyebrow">JOB DETAILS · {job.id}</span><h1>{job.title}</h1><p>Review the request before deciding whether to send an offer.</p></div><div className={`category-icon large ${job.tint}`}><Icon size={26} /></div></div><div className="details-layout"><div className="panel details-panel"><h2>About this job</h2><p className="details-description">{job.detail}</p><div className="detail-line"><MapPin size={18} /><div><strong>Service area</strong><span>{job.area}</span><small>Exact address and customer contact stay private until you're selected.</small></div></div><div className="detail-line"><CalendarDays size={18} /><div><strong>Preferred time</strong><span>{job.date}</span></div></div><div className="detail-line"><BriefcaseBusiness size={18} /><div><strong>Service category</strong><span>{job.category}</span></div></div><div className="privacy-note"><ShieldCheck size={18} /><span>Customer contact details are protected until a provider is selected.</span></div></div><aside className="panel offer-summary"><span className="eyebrow">YOUR OFFER</span><strong className="large-price">Your price</strong><p>Choose a fair price for the work. The customer will review your offer before selecting a provider.</p><div className="summary-divider" /><div className="summary-detail"><span>Job reference</span><strong>{job.id}</strong></div><div className="summary-detail"><span>Offer process</span><strong>One simple step</strong></div><button className="button button-primary full-button" onClick={() => onOffer(job)}>Send an offer <ArrowRight size={16} /></button><p className="fine-print">Preview only. Offers won't be sent until your account is connected.</p></aside></div></section>;
+}
+
+function MyWorkPage({ offers, go }) {
+  const [tab, setTab] = useState("Offers");
+  const tabs = [
+    { label: "Offers", count: offers.length },
+    { label: "Matched", count: 0 },
+    { label: "Active", count: 0 },
+    { label: "Completed", count: 0 }
+  ];
+  return <section className="page-section">
+    <div className="page-heading"><div><span className="eyebrow">YOUR WORK, IN ONE PLACE</span><h1>My work</h1><p>Track the jobs you offer on and what happens next.</p></div><div className="heading-icon"><ClipboardList size={24} /></div></div>
+    <div className="preview-notice work-notice"><ShieldCheck size={17} /><span>Preview mode: these records stay on this device. Customer selection and job status need the secure backend.</span></div>
+    <div className="tabs work-tabs" role="tablist" aria-label="My work status">{tabs.map(item => <button key={item.label} role="tab" aria-selected={tab === item.label} className={tab === item.label ? "selected" : ""} onClick={() => setTab(item.label)}>{item.label}<span className="tab-count">{item.count}</span></button>)}</div>
+    {tab === "Offers" && offers.length > 0 ? <div className="job-list">{offers.slice().reverse().map(offer => <article className="job-card work-offer-card" key={offer.jobId}><div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title}</h3><span className="job-id">{offer.jobId}</span></div><p className="job-category">Offer sent · Preview only</p></div><StatusPill tone="warning">Awaiting selection</StatusPill></div><div className="work-offer-bottom"><div><span className="eyebrow">YOUR OFFER</span><strong className="work-offer-price">₹{Number(offer.price).toLocaleString("en-IN")}</strong></div><div className="work-offer-message">{offer.note ? offer.note : "No message added"}</div></div></article>)}</div> : <div className="empty-state work-empty"><div className="empty-icon">{tab === "Completed" ? <CheckCircle2 size={23} /> : <ClipboardList size={23} />}</div><strong>{tab === "Offers" ? "No offers sent yet" : tab === "Matched" ? "No matched jobs yet" : tab === "Active" ? "No active jobs yet" : "No completed jobs yet"}</strong><p>{tab === "Offers" ? "Browse available jobs and send your price in one simple step." : tab === "Matched" ? "When a customer selects your offer, the job will appear here." : tab === "Active" ? "Matched work will move here when the job starts." : "After the customer verifies the completion OTP, finished work will appear here."}</p>{tab === "Offers" && <button className="button button-primary" onClick={() => go("jobs")}>Explore jobs <ArrowRight size={16} /></button>}</div>}
+    <div className="work-flow-hint"><div className="work-flow-step"><span>1</span><div><strong>Send one offer</strong><p>Choose your price and send it to the customer.</p></div></div><div className="work-flow-step"><span>2</span><div><strong>Get selected</strong><p>After selection, secure job contact becomes available.</p></div></div><div className="work-flow-step"><span>3</span><div><strong>Finish with OTP</strong><p>Completion and wallet commission are verified by the server.</p></div></div></div>
+  </section>;
 }
 
 function WalletPage({ onRecharge, requests }) {
