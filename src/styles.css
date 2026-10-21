@@ -46,3 +46,18 @@
 .language-help{display:flex;align-items:flex-start;gap:8px;margin:13px 0 0;color:#77847b;font-size:10px;line-height:1.6}
 .language-help span{font-weight:800;color:#176b50}
 @media(max-width:600px){.topbar-actions{gap:7px}.language-toggle{min-height:33px;padding:0 8px;font-size:10px}.language-globe{display:none}.active-job-preview{padding:15px}.active-job-head{gap:9px}.active-job-head h2{font-size:14px}.active-job-head .status-pill{font-size:8px}.completion-otp-form{padding:13px}.completion-otp-form .form-control{max-width:none}.completion-otp-form .button{width:100%;justify-content:center}}
+
+
+/* Profile controls: compact, accessible, and tablet friendly */
+.choice-chip-grid{display:flex;flex-wrap:wrap;gap:8px;margin:7px 0 16px}
+.choice-chip{display:inline-flex!important;align-items:center;gap:7px;padding:9px 11px;border:1px solid #e1e9e2;border-radius:10px;background:#fff;color:#53645a;font-size:11px!important;font-weight:650;cursor:pointer}
+.choice-chip input{width:14px;height:14px;margin:0;accent-color:#176b50}
+.choice-chip-selected{border-color:#8fc8a1;background:#eff8f1;color:#176b50}
+.profile-avatar{position:relative;overflow:hidden;display:grid;place-items:center}
+.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.photo-picker{display:inline-flex;align-items:center;gap:6px;margin:-2px 0 10px 24px!important;padding:6px 9px;border:1px solid #e0e8e1;border-radius:8px;color:#176b50;font-size:10px!important;font-weight:700;cursor:pointer}
+.photo-picker input{width:145px;max-width:45vw;font-size:10px}
+.profile-settings .settings-button{cursor:pointer}
+.profile-settings .settings-button:hover{background:#f7faf7}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #9bd0ab;outline-offset:2px}
+@media(max-width:600px){.choice-chip-grid{gap:6px}.choice-chip{padding:8px 9px;font-size:10px!important}.photo-picker{margin-left:18px!important}.photo-picker input{width:120px}}
