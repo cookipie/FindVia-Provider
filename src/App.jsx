@@ -126,7 +126,7 @@ function App() {
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} />}
           {page === "profile" && !selectedJob && <ProfilePage name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
-          {page === "verification" && <VerificationPage notify={notify} />}
+          {page === "verification" && <VerificationPage notify={notify} go={go} />}
           {page === "notifications" && <NotificationsPage go={go} />}
           {page === "support" && <SupportPage notify={notify} />}
         </div>
@@ -188,11 +188,11 @@ function ProfilePage({ name, setName, service, setService, language, setLanguage
 }
 
 
-function VerificationPage({ notify }) {
+function VerificationPage({ notify, go }) {
   const [documentType, setDocumentType] = useState("Identity proof");
   const [fileName, setFileName] = useState("");
   return <section className="page-section">
-    <button className="back-link" onClick={() => window.history.length > 1 ? window.history.back() : null}>Verification documents</button>
+    <button className="back-link" onClick={() => go("profile")}>← Back to profile</button>
     <div className="page-heading"><div><span className="eyebrow">ACCOUNT SAFETY</span><h1>Provider verification</h1><p>Verification helps customers feel confident choosing a provider.</p></div><div className="heading-icon"><ShieldCheck size={24} /></div></div>
     <div className="preview-notice"><ShieldCheck size={17} /><span>Document upload and review are not connected yet. Do not submit real identity documents in this preview.</span></div>
     <div className="panel verification-panel"><h2>Documents checklist</h2><div className="verification-row"><span className="verification-icon"><FileText size={19} /></span><div><strong>Identity proof</strong><p>Government ID required for account verification.</p></div><StatusPill tone="warning">Not submitted</StatusPill></div><div className="verification-row"><span className="verification-icon"><BriefcaseBusiness size={19} /></span><div><strong>Skill or experience proof</strong><p>Optional certificates or relevant work proof.</p></div><StatusPill>Optional</StatusPill></div>
