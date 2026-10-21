@@ -8,6 +8,9 @@ A mobile-first, accessible provider app for the FindVia service marketplace.
 - Authentication, provider verification, job actions, wallet transactions and OTP completion must be connected to the new Supabase project before real use.
 - Never store Supabase service-role keys in this app. Only the public anon/publishable key belongs in the client, protected by Row Level Security and server-side functions.
 
+## Deployment
+GitHub Pages must use **GitHub Actions** as its publishing source. The workflow builds the Vite app and deploys the generated `dist/` directory; do not publish the repository root directly.
+
 ## Local development
 1. Install Node.js 20 or newer.
 2. Run `npm install`.
