@@ -268,7 +268,13 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     setMessage("");
     setAuthMessage("");
     if (mode === "forgot") {
-      if (!email.trim()) { setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first."); return; }
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail) { setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first."); return; }
+      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail)) {
+        setMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
+        return;
+      }
+      setMessage(hi ? "रीसेट लिंक भेजने की कोशिश हो रही है…" : "Requesting your reset link…");
     }
     if (mode === "signup" && !name.trim()) {
       setMessage(hi ? "कृपया अपना पूरा नाम लिखें।" : "Please enter your full name.");
@@ -346,7 +352,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         <span className="eyebrow">{mode === "signin" ? (hi ? "वापसी पर स्वागत है" : "WELCOME BACK") : mode === "forgot" ? (hi ? "पासवर्ड वापस पाएँ" : "PASSWORD RECOVERY") : mode === "reset" ? (hi ? "नया पासवर्ड सेट करें" : "SET A NEW PASSWORD") : (hi ? "अपना खाता बनाएँ" : "CREATE YOUR ACCOUNT")}</span>
         <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : mode === "forgot" ? (hi ? "रीसेट लिंक मँगाएँ" : "Reset your password") : mode === "reset" ? (hi ? "नया पासवर्ड लिखें" : "Choose a new password") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
         <p>{mode === "forgot" ? (hi ? "आपके ईमेल पर सुरक्षित reset link भेजेंगे।" : "We’ll email you a secure password reset link.") : mode === "reset" ? (hi ? "कम से कम 8 अक्षरों का नया पासवर्ड चुनें।" : "Choose a new password with at least 8 characters.") : (hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely.")}</p>
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           {mode === "signup" && <>
             <label htmlFor="auth-full-name">{hi ? "पूरा नाम" : "Full name"}</label>
             <input className="form-control" id="auth-full-name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} maxLength="70" required />
