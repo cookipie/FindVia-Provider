@@ -61,3 +61,42 @@
 .profile-settings .settings-button:hover{background:#f7faf7}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #9bd0ab;outline-offset:2px}
 @media(max-width:600px){.choice-chip-grid{gap:6px}.choice-chip{padding:8px 9px;font-size:10px!important}.photo-picker{margin-left:18px!important}.photo-picker input{width:120px}}
+
+
+/* Real authentication entry and session restore */
+.account-loading {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--page, #f6f8fb);
+  color: var(--ink, #172033);
+}
+.account-loading h1 { margin: 4px 0 0; font-size: 1.45rem; }
+.account-loading p { margin: 0; color: var(--muted, #687386); }
+.account-auth-message {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid #f1c7bd;
+  border-radius: 12px;
+  background: #fff7f4;
+  color: #8d3020;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.account-form-panel .button:disabled { opacity: .65; cursor: wait; }
+.account-security-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 18px 0 0;
+  color: var(--muted, #687386);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+.account-security-note svg { flex: 0 0 auto; margin-top: 2px; }
