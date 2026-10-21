@@ -146,7 +146,8 @@ function App() {
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} language={language} notify={notify} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
-          {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}\n          {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
+          {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
+          {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
           {page === "notifications" && <NotificationsPage go={go} language={language} />}
           {page === "support" && <SupportPage notify={notify} language={language} />}
         </div>
