@@ -6,9 +6,43 @@
     <meta name="theme-color" content="#102c26" />
     <meta name="description" content="FindVia Provider helps service professionals manage job requests, offers and earnings." />
     <title>FindVia Provider</title>
+    <style>
+      html,body{margin:0;min-height:100%;background:#f5f7f5;color:#1d2d29;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      .startup{min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}
+      .startup-card{width:min(100%,480px);padding:24px;box-sizing:border-box;border:1px solid #e1e8e3;border-radius:20px;background:white}
+      .startup-brand{font-size:12px;font-weight:800;letter-spacing:2px;color:#176b50}
+      .startup h1{font-size:24px;margin:14px 0 8px}
+      .startup p{line-height:1.6;color:#56645d}
+      .startup-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#176b50;margin-right:8px;animation:pulse 1s infinite alternate}
+      @keyframes pulse{to{opacity:.25}}
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <div id="root">
+      <main class="startup">
+        <section class="startup-card">
+          <div class="startup-brand">FINDVIA · PROVIDER</div>
+          <h1>Opening your workspace…</h1>
+          <p><span class="startup-dot"></span>Loading the preview.</p>
+          <p id="startup-help" hidden>The app script did not start. Refresh this page once. If it stays here, send a screenshot to the app team.</p>
+        </section>
+      </main>
+    </div>
+    <script>
+      window.setTimeout(function () {
+        var help = document.getElementById("startup-help");
+        if (help && document.getElementById("root") && document.getElementById("root").querySelector(".startup")) {
+          help.hidden = false;
+        }
+      }, 8000);
+      window.addEventListener("error", function (event) {
+        var root = document.getElementById("root");
+        if (root && root.querySelector(".startup")) {
+          root.innerHTML = '<main class="startup"><section class="startup-card"><div class="startup-brand">FINDVIA · PROVIDER</div><h1>Preview failed to load</h1><p>The app files did not load correctly. Refresh once, then share this screen if the problem continues.</p></section></main>';
+        }
+        console.error("FindVia Provider asset error:", event.message || event.type);
+      });
+    </script>
+    <script type="module" src="/FindVia-Provider/src/main.jsx"></script>
   </body>
 </html>
