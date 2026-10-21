@@ -77,7 +77,7 @@ function App() {
   const [rechargeAmount, setRechargeAmount] = useState("500");
   const [rechargeUtr, setRechargeUtr] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [profileName, setProfileName] = useState(() => readPreviewState("profileName", "Rahul Sharma"));
+  const [profileName, setProfileName] = useState(() => readPreviewState("profileName", "Provider"));
   const [profileService, setProfileService] = useState(() => readPreviewState("profileService", "Plumbing"));
   const [profileSkills, setProfileSkills] = useState(() => readPreviewState("profileSkills", ["Plumbing"]));
   const [serviceAreas, setServiceAreas] = useState(() => readPreviewState("serviceAreas", ["Vaishali Nagar"]));
@@ -106,7 +106,8 @@ function App() {
   }, []);
   useEffect(() => {
     const fullName = authSession?.user?.user_metadata?.full_name;
-    if (fullName) setProfileName(fullName);
+    const emailName = authSession?.user?.email?.split("@")[0]?.replace(/[._-]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+    setProfileName(fullName || emailName || "Provider");
   }, [authSession?.user?.id]);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileName", JSON.stringify(profileName)); } catch {} }, [profileName]);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileService", JSON.stringify(profileService)); } catch {} }, [profileService]);
@@ -144,8 +145,8 @@ function App() {
   if (authLoading) {
     return <div className="account-loading"><div className="brand-mark"><Activity size={24} /></div><h1>FindVia Provider</h1><p>Restoring your secure session…</p></div>;
   }
-  if (!authSession) {
-    return <AccountAccessPage language={language} authMessage={authMessage} setAuthMessage={setAuthMessage} />;
+  if (!authSession || new URLSearchParams(window.location.search).get("reset-password") === "true") {
+    return <AccountAccessPage language={language} authMessage={authMessage} setAuthMessage={setAuthMessage} initialMode={new URLSearchParams(window.location.search).get("reset-password") === "true" ? "reset" : "signin"} />;
   }
 
   return (
@@ -158,7 +159,7 @@ function App() {
         </nav>
         <div className="sidebar-spacer" />
         <div className="sidebar-help"><div className="help-icon"><CircleHelp size={19} /></div><strong>Need a hand?</strong><p>We're here to help you get work done.</p><button onClick={() => notify("Support will be connected in a later step.")}>Get support <ArrowRight size={14} /></button></div>
-        <div className="sidebar-user"><div className="avatar">RS</div><div className="user-copy"><strong>{profileName}</strong><span>Provider account · Demo</span></div><ChevronDown size={16} /></div>
+        <div className="sidebar-user"><div className="avatar">{profileName.trim().split(/\\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV"}</div><div className="user-copy"><strong>{profileName}</strong><span>Provider account · Demo</span></div><ChevronDown size={16} /></div>
       </aside>
 
       {mobileMenu && <button className="scrim" aria-label="Close menu overlay" onClick={() => setMobileMenu(false)} />}
@@ -166,7 +167,7 @@ function App() {
       <main className="main-panel">
         <header className="topbar">
           <div className="topbar-left"><IconButton label="Open menu" className="menu-toggle" onClick={() => setMobileMenu(true)}><Menu size={21} /></IconButton><div className="breadcrumb">{isHindi ? "प्रदाता कार्यक्षेत्र" : "Provider workspace"} <span>/</span> <strong>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल",account:"खाता",verification:"सत्यापन",notifications:"सूचनाएँ",support:"सहायता"}[page] || "विवरण") : (navItems.find(item => item.id === page)?.label || "Details")}</strong></div></div>
-          <div className="topbar-actions"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "Switch app language to English" : "ऐप की भाषा हिंदी करें"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"} <ChevronDown size={13} /></button><div className="demo-indicator"><span /> {isHindi ? "पूर्वावलोकन" : "Preview mode"}</div><IconButton label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}><Bell size={19} /><i className="notification-dot" /></IconButton><div className="topbar-avatar">RS</div></div>
+          <div className="topbar-actions"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "Switch app language to English" : "ऐप की भाषा हिंदी करें"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"} <ChevronDown size={13} /></button><div className="demo-indicator"><span /> {isHindi ? "पूर्वावलोकन" : "Preview mode"}</div><IconButton label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}><Bell size={19} /><i className="notification-dot" /></IconButton><div className="topbar-avatar">{profileName.trim().split(/\\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV"}</div></div>
         </header>
 
         {notificationsOpen && <div className="notification-popover"><div className="popover-heading"><strong>Notifications</strong><button onClick={() => setNotificationsOpen(false)} aria-label="Close notifications"><X size={16} /></button></div><div className="notification-item"><span className="notification-symbol green"><BriefcaseBusiness size={16} /></span><div><strong>New jobs in your area</strong><p>3 sample job requests are ready to explore.</p><small>Preview · Just now</small></div></div><div className="notification-item"><span className="notification-symbol yellow"><Wallet size={16} /></span><div><strong>Wallet is in preview mode</strong><p>Connect your new account before adding real money.</p><small>Preview · Today</small></div></div></div>}
@@ -251,9 +252,9 @@ function ProfilePage({ onSignOut, name, setName, service, setService, skills, se
 
 
 
-function AccountAccessPage({ language, authMessage, setAuthMessage }) {
+function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode = "signin" }) {
   const hi = language === "Hindi";
-  const [mode, setMode] = useState("signin");
+  const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -266,6 +267,9 @@ function AccountAccessPage({ language, authMessage, setAuthMessage }) {
     event.preventDefault();
     setMessage("");
     setAuthMessage("");
+    if (mode === "forgot") {
+      if (!email.trim()) { setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first."); return; }
+    }
     if (mode === "signup" && !name.trim()) {
       setMessage(hi ? "कृपया अपना पूरा नाम लिखें।" : "Please enter your full name.");
       return;
@@ -274,13 +278,25 @@ function AccountAccessPage({ language, authMessage, setAuthMessage }) {
       setMessage(hi ? "10 अंकों का सही भारतीय मोबाइल नंबर लिखें।" : "Enter a valid 10-digit Indian mobile number.");
       return;
     }
-    if (password.length < 8) {
+    if (mode !== "forgot" && password.length < 8) {
       setMessage(hi ? "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए।" : "Password must be at least 8 characters.");
       return;
     }
     setBusy(true);
     try {
-      if (mode === "signup") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+          redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
+        });
+        if (error) throw error;
+        setMessage(hi ? "अगर इस ईमेल का खाता है, तो password reset link भेज दिया गया है। अपना inbox और spam folder देखें।" : "If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
+      } else if (mode === "reset") {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        setMessage(hi ? "पासवर्ड बदल गया। ऐप खोल रहे हैं…" : "Password updated. Opening the app…");
+        window.history.replaceState({}, "", window.location.pathname);
+        window.location.reload();
+      } else if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
@@ -327,9 +343,9 @@ function AccountAccessPage({ language, authMessage, setAuthMessage }) {
           <button type="button" className={mode === "signin" ? "active" : ""} onClick={() => { setMode("signin"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "लॉगिन" : "Log in"}</button>
           <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => { setMode("signup"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "नया खाता" : "Sign up"}</button>
         </div>
-        <span className="eyebrow">{mode === "signin" ? (hi ? "वापसी पर स्वागत है" : "WELCOME BACK") : (hi ? "अपना खाता बनाएँ" : "CREATE YOUR ACCOUNT")}</span>
-        <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
-        <p>{hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely."}</p>
+        <span className="eyebrow">{mode === "signin" ? (hi ? "वापसी पर स्वागत है" : "WELCOME BACK") : mode === "forgot" ? (hi ? "पासवर्ड वापस पाएँ" : "PASSWORD RECOVERY") : mode === "reset" ? (hi ? "नया पासवर्ड सेट करें" : "SET A NEW PASSWORD") : (hi ? "अपना खाता बनाएँ" : "CREATE YOUR ACCOUNT")}</span>
+        <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : mode === "forgot" ? (hi ? "रीसेट लिंक मँगाएँ" : "Reset your password") : mode === "reset" ? (hi ? "नया पासवर्ड लिखें" : "Choose a new password") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
+        <p>{mode === "forgot" ? (hi ? "आपके ईमेल पर सुरक्षित reset link भेजेंगे।" : "We’ll email you a secure password reset link.") : mode === "reset" ? (hi ? "कम से कम 8 अक्षरों का नया पासवर्ड चुनें।" : "Choose a new password with at least 8 characters.") : (hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely.")}</p>
         <form onSubmit={submit}>
           {mode === "signup" && <>
             <label htmlFor="auth-full-name">{hi ? "पूरा नाम" : "Full name"}</label>
@@ -340,11 +356,12 @@ function AccountAccessPage({ language, authMessage, setAuthMessage }) {
           <label htmlFor="auth-email">{hi ? "ईमेल" : "Email address"}</label>
           <input className="form-control" id="auth-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
           <label htmlFor="auth-password">{hi ? "पासवर्ड" : "Password"}</label>
-          <input className="form-control" id="auth-password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength="8" value={password} onChange={e => setPassword(e.target.value)} required />
-          <button className="button button-primary full-button" type="submit" disabled={busy}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : (mode === "signin" ? (hi ? "लॉगिन करें" : "Log in") : (hi ? "खाता बनाएँ" : "Create account"))} <ArrowRight size={16} /></button>
+          <input className="form-control" id="auth-password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength="8" value={password} onChange={e => setPassword(e.target.value)} required={mode !== "forgot"} />
+          <button className="button button-primary full-button" type="submit" disabled={busy}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : (mode === "signin" ? (hi ? "लॉगिन करें" : "Log in") : mode === "signup" ? (hi ? "खाता बनाएँ" : "Create account") : mode === "forgot" ? (hi ? "रीसेट लिंक भेजें" : "Send reset link") : (hi ? "पासवर्ड बदलें" : "Update password"))} <ArrowRight size={16} /></button>
         </form>
         {(message || authMessage) && <div className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status">{message || authMessage}</div>}
-        <p className="account-security-note"><ShieldCheck size={15} /> {hi ? "पासवर्ड Supabase Auth द्वारा सुरक्षित रूप से संभाला जाता है।" : "Passwords are handled securely by Supabase Auth; they are not stored in this app."}</p>
+        <div className="account-mode-links">{mode === "signin" && <button type="button" onClick={() => { setMode("forgot"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "पासवर्ड भूल गए?" : "Forgot password?"}</button>}{mode !== "signin" && <button type="button" onClick={() => { setMode("signin"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "लॉगिन पर वापस जाएँ" : "Back to log in"}</button>}{mode === "signin" && <button type="button" onClick={() => { setMode("signup"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "नया खाता बनाएँ" : "Create an account"}</button>}</div>
+        <p className="account-security-note"><ShieldCheck size={15} /> {hi ? "पासवर्ड सुरक्षित रूप से संभाला जाता है।" : "Passwords are handled securely and are never stored in this app."}</p>
       </div>
     </div>
   </section>;
