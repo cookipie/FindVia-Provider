@@ -100,3 +100,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   line-height: 1.5;
 }
 .account-security-note svg { flex: 0 0 auto; margin-top: 2px; }
+
+
+/* FindVia account recovery links */
+.account-mode-links{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}.account-mode-links button{border:0;background:transparent;padding:4px 0;color:#176b50;font-size:11px;font-weight:700;text-align:left}.account-mode-links button:hover{text-decoration:underline}
