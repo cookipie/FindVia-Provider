@@ -233,7 +233,7 @@ for each row execute function public.set_updated_at();
 -- A provider must never be able to self-approve by editing their own profile.
 create or replace function public.guard_provider_verification_fields()
 returns trigger language plpgsql set search_path = ''
-as $
+as $$
 begin
   if not public.has_role('management') and (
     new.verification_status is distinct from old.verification_status
@@ -244,7 +244,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 create trigger provider_verification_fields_guard
 before update on public.provider_profiles
