@@ -310,7 +310,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
           setMessage(hi ? "खाता बन गया। आपका कार्यक्षेत्र खुल रहा है…" : "Account created. Opening your workspace…");
         } else {
           setNeedsEmailConfirm(true);
-          setMessage(hi ? "खाता बनाने का अनुरोध सफल है। अपना ईमेल खोलकर confirmation link पर टैप करें, फिर यहाँ sign in करें।" : "Signup request received. Open your email and tap the confirmation link, then sign in here.");
+          setMessage(hi ? "खाता बन गया। ईमेल confirmation link खोलें; पुष्टि के बाद FindVia Provider खुलेगा।" : "Signup request received. Open the email confirmation link; after confirmation, FindVia Provider will open.");
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
