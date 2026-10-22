@@ -166,6 +166,7 @@ declare
   v_due numeric(12,2);
   v_pay numeric(12,2);
 begin
+  if p_approve is null then raise exception 'Choose approve or reject'; end if;
   if (select auth.uid()) is null or not public.has_role('management') then
     raise exception 'Management access is required';
   end if;
