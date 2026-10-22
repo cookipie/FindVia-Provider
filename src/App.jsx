@@ -309,7 +309,8 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "apikey": publishableKey
+            "apikey": publishableKey,
+            "Authorization": `Bearer ${publishableKey}`
           },
           body: JSON.stringify({ email: cleanEmail }),
           signal: controller.signal
@@ -356,15 +357,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     }
     setMessage("");
     setAuthMessage("");
-    if (mode === "forgot") {
-      const cleanEmail = email.trim().toLowerCase();
-      if (!cleanEmail) { setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first."); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-        setMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
-        return;
-      }
-      setMessage(hi ? "रीसेट लिंक भेजने की कोशिश हो रही है…" : "Requesting your reset link…");
-    }
     if (mode === "signup" && !name.trim()) {
       setMessage(hi ? "कृपया अपना पूरा नाम लिखें।" : "Please enter your full name.");
       return;
