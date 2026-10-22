@@ -394,6 +394,28 @@ function App() {
     setOfferJob(null); setOfferPrice(""); setOfferNote("");
     notify("Your offer was sent to the customer.");
   };
+  const startMatchedJob = async (jobId) => {
+    try {
+      const { error } = await supabase.rpc("provider_start_matched_job", { p_job_id: jobId });
+      if (error) throw error;
+      notify(isHindi ? "काम शुरू दर्ज हो गया।" : "Job start recorded.");
+      setJobsRefresh(value => value + 1);
+    } catch (error) {
+      notify(error?.message || (isHindi ? "काम शुरू नहीं हो सका।" : "Could not start this job."));
+    }
+  };
+  const completeMatchedJob = async (jobId, otp) => {
+    try {
+      const { error } = await supabase.rpc("provider_verify_completion_otp", { p_job_id: jobId, p_otp: otp });
+      if (error) throw error;
+      notify(isHindi ? "कोड सही है। काम पूरा हो गया।" : "Code verified. Job marked complete.");
+      setJobsRefresh(value => value + 1);
+      return true;
+    } catch (error) {
+      notify(error?.message || (isHindi ? "कोड सत्यापित नहीं हो सका।" : "Could not verify the completion code."));
+      return false;
+    }
+  };
   const requestRecharge = async (event) => {
     event.preventDefault();
     if (!Number.isFinite(Number(rechargeAmount)) || Number(rechargeAmount) < 100 || Number(rechargeAmount) > 50000) { notify(isHindi ? "₹100 से ₹50,000 के बीच राशि चुनें।" : "Enter an amount between ₹100 and ₹50,000."); return; }
@@ -463,7 +485,7 @@ function App() {
           {jobTab === "My offers" ? offerResults : jobsResults}</section>}
 
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} language={language} />}
-          {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} matches={matchedJobs} loading={matchedJobsLoading} error={matchedJobsError} go={go} language={language} notify={notify} />}
+          {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} matches={matchedJobs} loading={matchedJobsLoading} error={matchedJobsError} go={go} language={language} onStartJob={startMatchedJob} onCompleteJob={completeMatchedJob} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} loading={walletLoading} error={walletError} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
@@ -523,9 +545,11 @@ function JobDetails({ job, onBack, onOffer, language }) {
   </section>;
 }
 
-function MyWorkPage({ offers, matches, loading, error, go, language }) {
+function MyWorkPage({ offers, matches, loading, error, go, language, onStartJob, onCompleteJob }) {
   const hi = language === "Hindi";
   const [tab, setTab] = useState("Offers");
+  const [otpByJob, setOtpByJob] = useState({});
+  const [submittingJob, setSubmittingJob] = useState("");
   const activeMatches = matches.filter(job => job.job_status === "in_progress");
   const completedMatches = matches.filter(job => job.job_status === "completed");
   const tabs = [
@@ -551,7 +575,14 @@ function MyWorkPage({ offers, matches, loading, error, go, language }) {
       <div><span className="eyebrow">{hi ? "तय कीमत" : "AGREED PRICE"}</span><strong className="work-offer-price">₹{Number(job.agreed_price || 0).toLocaleString("en-IN")}</strong></div>
       <div className="work-offer-message">{hi ? "ग्राहक" : "Customer"}: {job.customer_name || (hi ? "नाम उपलब्ध नहीं" : "Name unavailable")}<br />{hi ? "फोन" : "Phone"}: {job.customer_phone || (hi ? "फोन उपलब्ध नहीं" : "Phone unavailable")}<br />{hi ? "पता" : "Address"}: {job.job_address || (hi ? "पता उपलब्ध नहीं" : "Address unavailable")}</div>
     </div>
+    {job.job_status === "matched" && <div className="modal-actions"><button className="button button-primary" disabled={submittingJob === job.job_id} onClick={async () => { setSubmittingJob(job.job_id); await onStartJob(job.job_id); setSubmittingJob(""); }}>{submittingJob === job.job_id ? (hi ? "कृपया रुकें…" : "Please wait…") : (hi ? "काम शुरू करें" : "Start job")} <ArrowRight size={16} /></button></div>}
+    {job.job_status === "in_progress" && <form className="completion-code-form" onSubmit={async event => { event.preventDefault(); const code = otpByJob[job.job_id] || ""; if (!/^[0-9]{6}$/.test(code)) return; setSubmittingJob(job.job_id); const ok = await onCompleteJob(job.job_id, code); setSubmittingJob(""); if (ok) setOtpByJob(current => ({...current, [job.job_id]: ""})); }}>
+      <label htmlFor={`completion-code-${job.job_id}`}>{hi ? "ग्राहक का 6 अंकों का completion code" : "Customer's 6-digit completion code"}</label>
+      <input id={`completion-code-${job.job_id}`} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength="6" required value={otpByJob[job.job_id] || ""} onChange={event => setOtpByJob(current => ({...current, [job.job_id]: event.target.value.replace(/\D/g, "").slice(0,6)}))} placeholder="000000" />
+      <button className="button button-primary" type="submit" disabled={submittingJob === job.job_id || (otpByJob[job.job_id] || "").length !== 6}>{submittingJob === job.job_id ? (hi ? "जाँच रहे हैं…" : "Verifying…") : (hi ? "काम पूरा सत्यापित करें" : "Verify completion")}</button>
+    </form>}
   </article>;
+
   const offerList = offers.filter(offer => offer.status !== "accepted");
   return <section className="page-section">
     <div className="page-heading">
