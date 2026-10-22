@@ -11,11 +11,31 @@ function readPreviewState(key, fallback) {
   try { const saved = window.localStorage.getItem(`findvia-provider:${key}`); return saved === null ? fallback : JSON.parse(saved); } catch { return fallback; }
 }
 
-const jobsSeed = [
-  { id: "FV-2048", title: "Kitchen sink tap repair", category: "Plumbing", area: "Vaishali Nagar, Jaipur", distance: "2.4 km away", date: "Today, 4:00 PM", budget: "₹600–₹900", icon: Wrench, tint: "mint", detail: "The kitchen tap is leaking near the base. Please bring standard washers and tools.", customer: "Customer details appear after selection." },
-  { id: "FV-2047", title: "Ceiling fan installation", category: "Electrical", area: "Mansarovar, Jaipur", distance: "4.1 km away", date: "Today, 5:30 PM", budget: "₹400–₹700", icon: Zap, tint: "amber", detail: "Install one ceiling fan in a bedroom. Existing wiring is available.", customer: "Customer details appear after selection." },
-  { id: "FV-2044", title: "Bathroom door adjustment", category: "Carpentry", area: "Jagatpura, Jaipur", distance: "6.8 km away", date: "Tomorrow, 10:00 AM", budget: "₹500–₹800", icon: Hammer, tint: "violet", detail: "The bathroom door is scraping the floor and needs adjustment.", customer: "Customer details appear after selection." }
-];
+function formatProviderJob(row) {
+  const category = row.category_name_en || "Service";
+  const categoryLower = category.toLowerCase();
+  const Icon = categoryLower.includes("electric") ? Zap : categoryLower.includes("carpent") || categoryLower.includes("wood") ? Hammer : Wrench;
+  const minimum = row.budget_min == null ? null : Number(row.budget_min);
+  const maximum = row.budget_max == null ? null : Number(row.budget_max);
+  const budget = minimum != null && maximum != null
+    ? `₹${minimum.toLocaleString("en-IN")}–₹${maximum.toLocaleString("en-IN")}`
+    : minimum != null ? `From ₹${minimum.toLocaleString("en-IN")}`
+    : maximum != null ? `Up to ₹${maximum.toLocaleString("en-IN")}` : "Budget not set";
+  return {
+    id: row.id,
+    title: row.title || "Service request",
+    category,
+    categoryHindi: row.category_name_hi || category,
+    area: [row.area_name, row.city].filter(Boolean).join(", "),
+    distance: "Service area match",
+    date: new Date(row.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+    budget,
+    icon: Icon,
+    tint: categoryLower.includes("electric") ? "amber" : categoryLower.includes("carpent") ? "violet" : "mint",
+    detail: "The customer’s exact address and contact details stay private until the job is matched.",
+    customer: "Customer details are hidden until selection."
+  };
+}
 
 const navItems = [
   { id: "home", label: "Home", icon: Home },
