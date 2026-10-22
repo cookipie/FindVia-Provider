@@ -276,6 +276,24 @@ begin
 end
 $$;
 
+-- Providers may serve more than one management-configured service area.
+create table if not exists public.provider_service_areas (
+  provider_id uuid not null references public.provider_profiles(user_id) on delete cascade,
+  service_area_id uuid not null references public.service_areas(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  primary key (provider_id, service_area_id)
+);
+
+alter table public.provider_service_areas enable row level security;
+drop policy if exists "provider manages own service areas" on public.provider_service_areas;
+create policy "provider manages own service areas" on public.provider_service_areas
+for all to authenticated
+using (provider_id = (select auth.uid()) and public.has_role('provider'))
+with check (provider_id = (select auth.uid()) and public.has_role('provider'));
+drop policy if exists "management reads provider service areas" on public.provider_service_areas;
+create policy "management reads provider service areas" on public.provider_service_areas
+for select to authenticated
+using (public.has_role('management'));
 -- Safe provider job discovery. The function intentionally omits exact address,
 -- customer contact details and free-form description text.
 alter table public.jobs
@@ -301,32 +319,27 @@ security definer
 set search_path = ''
 as $$
   select
-    j.id,
-    j.title,
-    c.id,
-    c.name_en,
-    c.name_hi,
-    c.icon_name,
-    j.city,
-    j.area_name,
-    j.budget_min,
-    j.budget_max,
-    j.created_at
+    j.id, j.title, c.id, c.name_en, c.name_hi, c.icon_name,
+    j.city, j.area_name, j.budget_min, j.budget_max, j.created_at
   from public.jobs j
   join public.service_categories c on c.id = j.category_id and c.is_active
   join public.provider_profiles p on p.user_id = (select auth.uid())
-  join public.provider_services ps
-    on ps.provider_id = p.user_id and ps.category_id = j.category_id
+  join public.provider_services ps on ps.provider_id = p.user_id and ps.category_id = j.category_id
   where (select auth.uid()) is not null
     and public.has_role('provider')
     and p.verification_status = 'approved'
     and p.is_available
-    and p.service_area_id is not null
-    and j.service_area_id = p.service_area_id
     and j.status = 'open'
+    and (
+      exists (
+        select 1 from public.provider_service_areas psa
+        where psa.provider_id = p.user_id and psa.service_area_id = j.service_area_id
+      )
+      or (p.service_area_id is not null and p.service_area_id = j.service_area_id
+        and not exists (select 1 from public.provider_service_areas psa where psa.provider_id = p.user_id))
+    )
   order by j.created_at desc;
 $$;
-
 revoke all on function public.provider_available_jobs() from public;
 grant execute on function public.provider_available_jobs() to authenticated;
 
