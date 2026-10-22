@@ -294,9 +294,19 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     window.alert(waiting);
     setBusy(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-        redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
-      });
+      let timeoutId;
+      const { error } = await Promise.race([
+        supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
+        }),
+        new Promise((_, reject) => {
+          timeoutId = window.setTimeout(() => reject(new Error(
+            hi
+              ? "15 सेकंड में Supabase से जवाब नहीं आया। इंटरनेट कनेक्शन या Supabase Auth की जाँच करनी होगी।"
+              : "Supabase did not respond within 15 seconds. The connection or Supabase Auth needs checking."
+          )), 15000);
+        })
+      ]).finally(() => window.clearTimeout(timeoutId));
       if (error) throw error;
       const success = hi ? "अनुरोध स्वीकार हुआ। अपने ईमेल के Inbox और Spam फ़ोल्डर देखें।" : "Reset request accepted. Check your email Inbox and Spam folder.";
       showResetMessage(success);
