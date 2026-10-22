@@ -406,8 +406,12 @@ function App() {
   };
   const completeMatchedJob = async (jobId, otp) => {
     try {
-      const { error } = await supabase.rpc("provider_verify_completion_otp", { p_job_id: jobId, p_otp: otp });
+      const { data, error } = await supabase.rpc("provider_verify_completion_otp", { p_job_id: jobId, p_otp: otp });
       if (error) throw error;
+      if (data !== true) {
+        notify(isHindi ? "कोड गलत है। ग्राहक से सही 6 अंकों का कोड लें।" : "Incorrect code. Ask the customer for the correct 6-digit code.");
+        return false;
+      }
       notify(isHindi ? "कोड सही है। काम पूरा हो गया।" : "Code verified. Job marked complete.");
       setJobsRefresh(value => value + 1);
       return true;
