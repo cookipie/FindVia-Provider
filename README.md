@@ -3,8 +3,9 @@
 A mobile-first, accessible provider app for the FindVia service marketplace.
 
 ## Current status
-- The deployed UI is still a preview; jobs, offers, profile edits, verification uploads, notifications and wallet requests are not yet live database features.
-- Supabase Auth is connected in the frontend, but a successful frontend build does not prove email delivery or database policies are configured correctly.
+- Supabase Auth, privacy-safe job discovery, offer submission and offer history are wired to the shared schema/RPCs. They require both migrations to be applied, service categories and areas configured, and the provider to be approved and marked available.
+- Profile edits, verification uploads, wallet/recharge requests, notifications, matching and OTP completion are still not production-connected.
+- A successful frontend build does not prove email delivery or database policies are configured correctly.
 - Never store Supabase service-role keys in this app. Only the public anon/publishable key belongs in the client, protected by Row Level Security and server-side functions.
 
 ## Deployment
