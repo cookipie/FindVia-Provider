@@ -414,6 +414,7 @@ function App() {
       if (error) throw error;
       notify(isHindi ? "काम शुरू दर्ज हो गया।" : "Job start recorded.");
       setJobsRefresh(value => value + 1);
+      setNotificationsRefresh(value => value + 1);
     } catch (error) {
       notify(error?.message || (isHindi ? "काम शुरू नहीं हो सका।" : "Could not start this job."));
     }
@@ -428,6 +429,8 @@ function App() {
       }
       notify(isHindi ? "कोड सही है। काम पूरा हो गया।" : "Code verified. Job marked complete.");
       setJobsRefresh(value => value + 1);
+      setWalletRefresh(value => value + 1);
+      setNotificationsRefresh(value => value + 1);
       return true;
     } catch (error) {
       notify(error?.message || (isHindi ? "कोड सत्यापित नहीं हो सका।" : "Could not verify the completion code."));
