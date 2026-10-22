@@ -263,6 +263,34 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
   const [message, setMessage] = useState("");
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
+  const sendResetLink = async () => {
+    // Give immediate visible feedback before contacting Supabase.
+    setAuthMessage("");
+    setNeedsEmailConfirm(false);
+    setMessage(hi ? "रीसेट बटन दब गया है — ईमेल जाँच रहे हैं…" : "Reset button clicked — checking your email…");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
+      });
+      if (error) throw error;
+      setMessage(hi ? "अगर इस ईमेल का खाता है, तो reset link भेजने का अनुरोध स्वीकार हुआ। Inbox और spam folder देखें।" : "The reset request was accepted if an account exists. Check your inbox and spam folder.");
+    } catch (error) {
+      setMessage(error?.message || (hi ? "रीसेट लिंक नहीं भेजा जा सका। कृपया फिर कोशिश करें।" : "Could not request a reset link. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submit = async event => {
     event.preventDefault();
     setMessage("");
@@ -362,7 +390,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
           <label htmlFor="auth-email">{hi ? "ईमेल" : "Email address"}</label>
           <input className="form-control" id="auth-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
           {mode !== "forgot" && <><label htmlFor="auth-password">{mode === "reset" ? (hi ? "नया पासवर्ड" : "New password") : (hi ? "पासवर्ड" : "Password")}</label><input className="form-control" id="auth-password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength="8" value={password} onChange={e => setPassword(e.target.value)} required /></>}
-          <button className="button button-primary full-button" type="button" disabled={busy} onClick={event => { event.preventDefault(); void submit(event); }}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : (mode === "signin" ? (hi ? "लॉगिन करें" : "Log in") : mode === "signup" ? (hi ? "खाता बनाएँ" : "Create account") : mode === "forgot" ? (hi ? "रीसेट लिंक भेजें" : "Send reset link") : (hi ? "पासवर्ड बदलें" : "Update password"))} <ArrowRight size={16} /></button>
+          <button className="button button-primary full-button" type="button" disabled={busy} onClick={mode === "forgot" ? () => { void sendResetLink(); } : event => { event.preventDefault(); void submit(event); }}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : (mode === "signin" ? (hi ? "लॉगिन करें" : "Log in") : mode === "signup" ? (hi ? "खाता बनाएँ" : "Create account") : mode === "forgot" ? (hi ? "रीसेट लिंक भेजें" : "Send reset link") : (hi ? "पासवर्ड बदलें" : "Update password"))} <ArrowRight size={16} /></button>
         </form>
         {(message || authMessage) && <div className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status">{message || authMessage}</div>}
         <div className="account-mode-links">{mode === "signin" && <button type="button" onClick={() => { setMode("forgot"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "पासवर्ड भूल गए?" : "Forgot password?"}</button>}{mode !== "signin" && <button type="button" onClick={() => { setMode("signin"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "लॉगिन पर वापस जाएँ" : "Back to log in"}</button>}{mode === "signin" && <button type="button" onClick={() => { setMode("signup"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "नया खाता बनाएँ" : "Create an account"}</button>}</div>
