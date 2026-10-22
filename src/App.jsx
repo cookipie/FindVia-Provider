@@ -311,13 +311,13 @@ function App() {
       setWalletRefresh(value => value + 1);
       setProfileRefresh(value => value + 1);
     };
-    window.addEventListener("focus", refreshOnReturn);
     document.addEventListener("visibilitychange", refreshOnReturn);
-    return () => {
-      window.removeEventListener("focus", refreshOnReturn);
-      document.removeEventListener("visibilitychange", refreshOnReturn);
-    };
+    return () => document.removeEventListener("visibilitychange", refreshOnReturn);
   }, [authSession?.user?.id]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [page, selectedJob]);
   const markNotificationRead = async notificationId => {
     const row = notifications.find(item => item.id === notificationId);
     if (!row || row.read_at) return;
