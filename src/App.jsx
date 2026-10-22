@@ -293,7 +293,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       const text = hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.";
       showResetMessage(text);
-      window.alert(text);
       return;
     }
 
