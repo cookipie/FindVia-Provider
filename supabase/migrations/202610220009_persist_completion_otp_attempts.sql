@@ -62,7 +62,7 @@ begin
     (v_user_id, 'Work completed', 'The completion code was verified and the job is marked complete.', 'job_completed', p_job_id);
   return true;
 end;
-$;
+$$;
 
 
 revoke all on function public.provider_verify_completion_otp(uuid, text) from public, anon;
