@@ -148,3 +148,90 @@ create policy "provider manages own services" on public.provider_services
 for all to authenticated
 using (provider_id = (select auth.uid()) and public.has_role('provider'))
 with check (provider_id = (select auth.uid()) and public.has_role('provider'));
+
+-- Customers can create only open, unmatched jobs. Matching and completion
+-- state must be written by trusted server-side functions.
+drop policy if exists "customer creates own jobs" on public.jobs;
+create policy "customer creates own open jobs" on public.jobs
+for insert to authenticated
+with check (
+  customer_id = (select auth.uid())
+  and public.has_role('customer')
+  and status = 'open'
+  and matched_provider_id is null
+  and completion_verified_at is null
+);
+
+create or replace function public.guard_customer_job_state()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if not public.has_role('management') and (
+    new.customer_id is distinct from old.customer_id
+    or new.status is distinct from old.status
+    or new.matched_provider_id is distinct from old.matched_provider_id
+    or new.completion_verified_at is distinct from old.completion_verified_at
+    or new.created_at is distinct from old.created_at
+  ) then
+    raise exception 'Job lifecycle fields can only be changed by trusted server-side actions';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists customer_job_state_guard on public.jobs;
+create trigger customer_job_state_guard
+before update on public.jobs
+for each row execute function public.guard_customer_job_state();
+
+-- An offer submitted from a provider client must start as pending.
+drop policy if exists "verified providers submit own offer" on public.job_offers;
+create policy "verified providers submit own pending offer" on public.job_offers
+for insert to authenticated
+with check (
+  provider_id = (select auth.uid())
+  and status = 'pending'
+  and public.has_role('provider')
+  and exists (
+    select 1 from public.provider_profiles p
+    where p.user_id = (select auth.uid())
+      and p.verification_status = 'approved'
+  )
+  and exists (
+    select 1 from public.jobs j
+    where j.id = job_id and j.status = 'open'
+  )
+);
+
+-- The verification guard also applies to INSERT, preventing a client from
+-- creating an already-approved provider profile.
+create or replace function public.guard_provider_verification_fields()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if not public.has_role('management') then
+    if tg_op = 'INSERT' then
+      if new.verification_status <> 'not_submitted'
+        or new.verification_note is not null
+        or new.verified_at is not null then
+        raise exception 'Only management can set provider verification fields';
+      end if;
+    elsif
+      new.verification_status is distinct from old.verification_status
+      or new.verification_note is distinct from old.verification_note
+      or new.verified_at is distinct from old.verified_at then
+      raise exception 'Only management can change provider verification fields';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists provider_verification_fields_guard on public.provider_profiles;
+create trigger provider_verification_fields_guard
+before insert or update on public.provider_profiles
+for each row execute function public.guard_provider_verification_fields();
