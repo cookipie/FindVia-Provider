@@ -343,6 +343,30 @@ $$;
 revoke all on function public.provider_available_jobs() from public;
 grant execute on function public.provider_available_jobs() to authenticated;
 
+create table if not exists public.provider_support_requests (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid not null references public.provider_profiles(user_id) on delete cascade,
+  topic text not null check (length(btrim(topic)) between 2 and 80),
+  message text not null check (length(btrim(message)) between 5 and 1000),
+  status text not null default 'open' check (status in ('open','in_progress','resolved','closed')),
+  management_reply text,
+  assigned_to uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.provider_support_requests enable row level security;
+drop policy if exists "provider reads own support requests" on public.provider_support_requests;
+create policy "provider reads own support requests" on public.provider_support_requests
+for select to authenticated using (provider_id = (select auth.uid()) and public.has_role('provider'));
+drop policy if exists "provider creates own support requests" on public.provider_support_requests;
+create policy "provider creates own support requests" on public.provider_support_requests
+for insert to authenticated with check (
+  provider_id = (select auth.uid()) and public.has_role('provider') and status = 'open'
+  and management_reply is null and assigned_to is null
+);
+drop policy if exists "management manages support requests" on public.provider_support_requests;
+create policy "management manages support requests" on public.provider_support_requests
+for all to authenticated using (public.has_role('management')) with check (public.has_role('management'));
 -- Private verification-document metadata and storage bucket.
 create table if not exists public.provider_verification_documents (
   id uuid primary key default gen_random_uuid(),
