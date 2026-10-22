@@ -54,9 +54,6 @@ set search_path = ''
 as $$
 begin
   if not public.has_role('management') then
-    if tg_op = 'DELETE' then
-      raise exception 'Only management can delete verification records';
-    end if;
     if tg_op = 'INSERT' then
       if new.status <> 'pending'::public.verification_status
         or new.reviewer_note is not null
@@ -85,7 +82,7 @@ $$;
 
 drop trigger if exists provider_verification_document_review_guard on public.provider_verification_documents;
 create trigger provider_verification_document_review_guard
-before insert or update or delete on public.provider_verification_documents
+before insert or update on public.provider_verification_documents
 for each row execute function public.guard_provider_verification_document_review();
 
 revoke all on function public.guard_provider_verification_document_review() from public, anon, authenticated;
