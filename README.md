@@ -4,7 +4,7 @@ A mobile-first, accessible provider app for the FindVia service marketplace.
 
 ## Current status
 - Supabase Auth, profile editing, multi-area/service selection, privacy-safe job discovery, offer submission/history, private verification uploads, wallet/ledger reads, UTR recharge requests, live notifications and support requests are wired in the frontend.
-- These flows require the shared core migration and provider hardening migration to be successfully applied in Supabase. Categories and service areas must be configured by management; providers must be approved and available to receive jobs.
+- These flows require the shared core migration and provider hardening migration to be successfully applied in Supabase. Initial categories and broad launch service areas are seeded by migrations 003 and 004; Management will later control the full list; providers must be approved and available to receive jobs.
 - Customer offer selection/matching, secure customer contact reveal, active-job lifecycle, completion OTP, server-side commission posting, and management review screens still need implementation and integration tests.
 - A successful frontend build does not prove that migrations, storage policies, SMTP delivery, or database policies are configured correctly.
 - Never store Supabase service-role keys in this app. Only the public anon/publishable key belongs in the client, protected by Row Level Security and server-side functions.
