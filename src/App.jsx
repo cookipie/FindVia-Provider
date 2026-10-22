@@ -263,17 +263,26 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
   const [message, setMessage] = useState("");
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
+  const showResetMessage = text => {
+    setMessage(text);
+    const status = document.getElementById("auth-reset-status");
+    if (status) {
+      status.textContent = text;
+      status.style.display = "block";
+    }
+  };
+
   const sendResetLink = async () => {
     setAuthMessage("");
     setNeedsEmailConfirm(false);
-    setMessage(hi ? "रीसेट बटन दब गया है — ईमेल जाँच रहे हैं…" : "Reset button clicked — checking your email…");
+    showResetMessage(hi ? "रीसेट बटन दब गया है — ईमेल जाँच रहे हैं…" : "Reset button clicked — checking your email…");
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first.");
+      showResetMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
+      showResetMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
       return;
     }
     setBusy(true);
@@ -282,9 +291,9 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
       });
       if (error) throw error;
-      setMessage(hi ? "अगर इस ईमेल का खाता है, तो reset link भेजने का अनुरोध स्वीकार हुआ। Inbox और spam folder देखें।" : "The reset request was accepted if an account exists. Check your inbox and spam folder.");
+      showResetMessage(hi ? "अगर इस ईमेल का खाता है, तो reset link भेजने का अनुरोध स्वीकार हुआ। Inbox और spam folder देखें।" : "The reset request was accepted if an account exists. Check your inbox and spam folder.");
     } catch (error) {
-      setMessage(error?.message || (hi ? "रीसेट लिंक नहीं भेजा जा सका। कृपया फिर कोशिश करें।" : "Could not request a reset link. Please try again."));
+      showResetMessage(error?.message || (hi ? "रीसेट लिंक नहीं भेजा जा सका। कृपया फिर कोशिश करें।" : "Could not request a reset link. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -379,7 +388,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         <span className="eyebrow">{mode === "signin" ? (hi ? "वापसी पर स्वागत है" : "WELCOME BACK") : mode === "forgot" ? (hi ? "पासवर्ड वापस पाएँ" : "PASSWORD RECOVERY") : mode === "reset" ? (hi ? "नया पासवर्ड सेट करें" : "SET A NEW PASSWORD") : (hi ? "अपना खाता बनाएँ" : "CREATE YOUR ACCOUNT")}</span>
         <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : mode === "forgot" ? (hi ? "रीसेट लिंक मँगाएँ" : "Reset your password") : mode === "reset" ? (hi ? "नया पासवर्ड लिखें" : "Choose a new password") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
         <p>{mode === "forgot" ? (hi ? "आपके ईमेल पर सुरक्षित reset link भेजेंगे।" : "We’ll email you a secure password reset link.") : mode === "reset" ? (hi ? "कम से कम 8 अक्षरों का नया पासवर्ड चुनें।" : "Choose a new password with at least 8 characters.") : (hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely.")}</p>
-        {(message || authMessage) && <div className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status" aria-live="polite">{message || authMessage}</div>}
+        <div id="auth-reset-status" className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status" aria-live="polite" style={{ display: (message || authMessage) ? "block" : "none" }}>{message || authMessage}</div>
         <form onSubmit={submit} noValidate>
           {mode === "signup" && <>
             <label htmlFor="auth-full-name">{hi ? "पूरा नाम" : "Full name"}</label>
