@@ -322,6 +322,10 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
 
   const submit = async event => {
     event.preventDefault();
+    if (mode === "forgot") {
+      void sendResetLink();
+      return;
+    }
     setMessage("");
     setAuthMessage("");
     if (mode === "forgot") {
