@@ -87,6 +87,11 @@ function App() {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState("");
   const [jobsRefresh, setJobsRefresh] = useState(0);
+  const [availableCategories, setAvailableCategories] = useState([]);
+  const [availableAreas, setAvailableAreas] = useState([]);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [page, setPage] = useState("home");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [query, setQuery] = useState("");
@@ -102,14 +107,14 @@ function App() {
   const [rechargeAmount, setRechargeAmount] = useState("500");
   const [rechargeUtr, setRechargeUtr] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [profileName, setProfileName] = useState(() => readPreviewState("profileName", "Provider"));
-  const [profileService, setProfileService] = useState(() => readPreviewState("profileService", "Plumbing"));
-  const [profileSkills, setProfileSkills] = useState(() => readPreviewState("profileSkills", ["Plumbing"]));
-  const [serviceAreas, setServiceAreas] = useState(() => readPreviewState("serviceAreas", ["Vaishali Nagar"]));
+  const [profileName, setProfileName] = useState("");
+  const [profileService, setProfileService] = useState("");
+  const [profileSkills, setProfileSkills] = useState([]);
+  const [serviceAreas, setServiceAreas] = useState([]);
   const [language, setLanguage] = useState(() => readPreviewState("language", "English"));
   const isHindi = language === "Hindi";
   const [submittedOffers, setSubmittedOffers] = useState([]);
-  const [walletRequests, setWalletRequests] = useState(() => readPreviewState("walletRequests", []));
+  const [walletRequests, setWalletRequests] = useState([]);
   const [providerAvailable, setProviderAvailable] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -129,17 +134,50 @@ function App() {
       listener.subscription.unsubscribe();
     };
   }, []);
-  useEffect(() => {
-    const fullName = authSession?.user?.user_metadata?.full_name;
-    const emailName = authSession?.user?.email?.split("@")[0]?.replace(/[._-]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
-    setProfileName(fullName || emailName || "Provider");
-  }, [authSession?.user?.id]);
-  useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileName", JSON.stringify(profileName)); } catch {} }, [profileName]);
-  useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileService", JSON.stringify(profileService)); } catch {} }, [profileService]);
-  useEffect(() => { try { window.localStorage.setItem("findvia-provider:profileSkills", JSON.stringify(profileSkills)); } catch {} }, [profileSkills]);
-  useEffect(() => { try { window.localStorage.setItem("findvia-provider:serviceAreas", JSON.stringify(serviceAreas)); } catch {} }, [serviceAreas]);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:language", JSON.stringify(language)); } catch {} }, [language]);
-  useEffect(() => { try { window.localStorage.setItem("findvia-provider:walletRequests", JSON.stringify(walletRequests)); } catch {} }, [walletRequests]);
+
+  useEffect(() => {
+    const userId = authSession?.user?.id;
+    if (!userId) return;
+    let active = true;
+    const loadProfile = async () => {
+      setProfileLoading(true);
+      setProfileError("");
+      try {
+        const [baseResult, providerResult, categoriesResult, areasResult, servicesResult, providerAreasResult] = await Promise.all([
+          supabase.from("profiles").select("full_name, preferred_language").eq("id", userId).maybeSingle(),
+          supabase.from("provider_profiles").select("service_area_id, verification_status").eq("user_id", userId).maybeSingle(),
+          supabase.from("service_categories").select("id, name_en, name_hi").eq("is_active", true).order("name_en"),
+          supabase.from("service_areas").select("id, city, area_name, state").eq("is_active", true).order("city").order("area_name"),
+          supabase.from("provider_services").select("category_id").eq("provider_id", userId),
+          supabase.from("provider_service_areas").select("service_area_id").eq("provider_id", userId)
+        ]);
+        if (!active) return;
+        const coreError = baseResult.error || providerResult.error || categoriesResult.error || areasResult.error;
+        if (coreError) setProfileError(coreError.message || "Could not load your profile.");
+        const categories = categoriesResult.data || [];
+        const areas = areasResult.data || [];
+        setAvailableCategories(categories);
+        setAvailableAreas(areas);
+        setProfileName(baseResult.data?.full_name || authSession.user.user_metadata?.full_name || authSession.user.email?.split("@")[0] || "");
+        const preferred = baseResult.data?.preferred_language;
+        if (preferred === "hi" || preferred === "en") setLanguage(preferred === "hi" ? "Hindi" : "English");
+        const selectedCategoryIds = (servicesResult.data || []).map(item => item.category_id);
+        const selectedCategoryNames = categories.filter(item => selectedCategoryIds.includes(item.id)).map(item => item.name_en);
+        setProfileSkills(selectedCategoryNames);
+        setProfileService(selectedCategoryNames[0] || categories[0]?.name_en || "");
+        const selectedAreaIds = (providerAreasResult.data || []).map(item => item.service_area_id);
+        const finalAreaIds = selectedAreaIds.length ? selectedAreaIds : (providerResult.data?.service_area_id ? [providerResult.data.service_area_id] : []);
+        setServiceAreas(finalAreaIds.filter(id => areas.some(area => area.id === id)));
+      } catch (error) {
+        if (active) setProfileError(error?.message || "Could not connect to your profile.");
+      } finally {
+        if (active) setProfileLoading(false);
+      }
+    };
+    void loadProfile();
+    return () => { active = false; };
+  }, [authSession?.user?.id]);
 
   useEffect(() => {
     const userId = authSession?.user?.id;
@@ -198,6 +236,28 @@ function App() {
 
   const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 2800); };
   const go = (next) => { setPage(next); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
+  const saveProfile = async () => {
+    if (!authSession?.user?.id) { notify("Please sign in again."); return; }
+    if (profileName.trim().length < 2) { notify(isHindi ? "अपना पूरा नाम लिखें।" : "Enter your full name."); return; }
+    setProfileSaving(true);
+    try {
+      const selectedCategories = availableCategories.filter(item => profileSkills.includes(item.name_en) || item.name_en === profileService).map(item => item.id);
+      const { error } = await supabase.rpc("provider_save_profile", {
+        p_full_name: profileName.trim(),
+        p_preferred_language: language === "Hindi" ? "hi" : "en",
+        p_category_ids: selectedCategories,
+        p_service_area_ids: serviceAreas
+      });
+      if (error) throw error;
+      notify(isHindi ? "आपकी प्रोफ़ाइल सुरक्षित रूप से सेव हो गई।" : "Your profile was saved securely.");
+      setJobsRefresh(value => value + 1);
+    } catch (error) {
+      notify(error?.message || (isHindi ? "प्रोफ़ाइल सेव नहीं हो सकी।" : "Could not save your profile."));
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   const updateAvailability = async nextValue => {
     const userId = authSession?.user?.id;
     if (!userId) return;
@@ -288,7 +348,7 @@ function App() {
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} language={language} />}
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} language={language} notify={notify} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} language={language} />}
-          {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
+          {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
           {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
           {page === "notifications" && <NotificationsPage go={go} language={language} />}
