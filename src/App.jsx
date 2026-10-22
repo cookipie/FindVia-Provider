@@ -264,7 +264,8 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
   const sendResetLink = async () => {
-    // Give immediate visible feedback before contacting Supabase.
+    // Temporary click diagnostic: prove whether the live page is running this handler.
+    window.alert(hi ? "रीसेट बटन का क्लिक ऐप तक पहुँचा।" : "Reset button click reached the app.");
     setAuthMessage("");
     setNeedsEmailConfirm(false);
     setMessage(hi ? "रीसेट बटन दब गया है — ईमेल जाँच रहे हैं…" : "Reset button clicked — checking your email…");
