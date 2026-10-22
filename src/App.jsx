@@ -147,33 +147,42 @@ function App() {
     const loadProviderData = async () => {
       setJobsLoading(true);
       setJobsError("");
-      const [jobsResult, offersResult, profileResult] = await Promise.all([
-        supabase.rpc("provider_available_jobs"),
-        supabase.from("job_offers").select("job_id, offered_price, message, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }),
-        supabase.from("provider_profiles").select("is_available").eq("user_id", userId).maybeSingle()
-      ]);
-      if (!active) return;
-      if (jobsResult.error) {
-        setJobs([]);
-        setJobsError(jobsResult.error.message || "Could not load available jobs.");
-      } else {
-        setJobs((jobsResult.data || []).map(formatProviderJob));
+      try {
+        const [jobsResult, offersResult, profileResult] = await Promise.all([
+          supabase.rpc("provider_available_jobs"),
+          supabase.from("job_offers").select("job_id, offered_price, message, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }),
+          supabase.from("provider_profiles").select("is_available").eq("user_id", userId).maybeSingle()
+        ]);
+        if (!active) return;
+        if (jobsResult.error) {
+          setJobs([]);
+          setJobsError(jobsResult.error.message || "Could not load available jobs.");
+        } else {
+          setJobs((jobsResult.data || []).map(formatProviderJob));
+        }
+        if (offersResult.error) {
+          setSubmittedOffers([]);
+        } else {
+          setSubmittedOffers((offersResult.data || []).map(offer => ({
+            jobId: offer.job_id,
+            title: "Job offer",
+            price: Number(offer.offered_price),
+            note: offer.message || "",
+            status: offer.status
+          })));
+        }
+        if (!profileResult.error && profileResult.data) {
+          setProviderAvailable(Boolean(profileResult.data.is_available));
+        }
+      } catch (error) {
+        if (active) {
+          setJobs([]);
+          setSubmittedOffers([]);
+          setJobsError(error?.message || "Could not connect to the provider service.");
+        }
+      } finally {
+        if (active) setJobsLoading(false);
       }
-      if (offersResult.error) {
-        setSubmittedOffers([]);
-      } else {
-        setSubmittedOffers((offersResult.data || []).map(offer => ({
-          jobId: offer.job_id,
-          title: "Job offer",
-          price: Number(offer.offered_price),
-          note: offer.message || "",
-          status: offer.status
-        })));
-      }
-      if (!profileResult.error && profileResult.data) {
-        setProviderAvailable(Boolean(profileResult.data.is_available));
-      }
-      setJobsLoading(false);
     };
     void loadProviderData();
     return () => { active = false; };
