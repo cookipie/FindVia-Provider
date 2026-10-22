@@ -483,7 +483,7 @@ function App() {
           {navItems.map(item => { const Icon = item.icon; return <button key={item.id} className={`nav-link ${page === item.id ? "active" : ""}`} onClick={() => go(item.id)}><Icon size={19} strokeWidth={1.9} /><span>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल"}[item.id]) : item.label}</span>{item.id === "jobs" && <span className="nav-count">{jobs.length}</span>}</button>; })}
         </nav>
         <div className="sidebar-spacer" />
-        <div className="sidebar-help"><div className="help-icon"><CircleHelp size={19} /></div><strong>Need a hand?</strong><p>We're here to help you get work done.</p><button onClick={() => go("support")}>{isHindi ? "सहायता लें" : "Get support"} <ArrowRight size={14} /></button></div>
+        <div className="sidebar-help"><div className="help-icon"><CircleHelp size={19} /></div><strong>{isHindi ? "मदद चाहिए?" : "Need a hand?"}</strong><p>{isHindi ? "हम आपके काम में सहायता के लिए हैं।" : "We\'re here to help you get work done."}</p><button onClick={() => go("support")}>{isHindi ? "सहायता लें" : "Get support"} <ArrowRight size={14} /></button></div>
         <div className="sidebar-user"><div className="avatar">{profileName.trim().split(/\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV"}</div><div className="user-copy"><strong>{profileName}</strong><span>{isHindi ? "प्रदाता खाता" : "Provider account"}</span></div><ChevronDown size={16} /></div>
       </aside>
 
