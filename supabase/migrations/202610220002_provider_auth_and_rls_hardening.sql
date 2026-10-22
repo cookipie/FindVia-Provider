@@ -343,6 +343,67 @@ $$;
 revoke all on function public.provider_available_jobs() from public;
 grant execute on function public.provider_available_jobs() to authenticated;
 
+-- Atomically save a provider's editable profile and service coverage.
+create or replace function public.provider_save_profile(
+  p_full_name text,
+  p_preferred_language text,
+  p_category_ids uuid[],
+  p_service_area_ids uuid[]
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_user_id uuid := (select auth.uid());
+  v_area_id uuid;
+  v_category_count integer;
+  v_area_count integer;
+begin
+  if v_user_id is null or not public.has_role('provider') then
+    raise exception 'Provider sign-in is required';
+  end if;
+  if length(btrim(coalesce(p_full_name, ''))) < 2 or length(btrim(p_full_name)) > 70 then
+    raise exception 'Enter a name between 2 and 70 characters';
+  end if;
+  if p_preferred_language not in ('hi', 'en') then
+    raise exception 'Unsupported language';
+  end if;
+  select count(distinct id) into v_category_count
+  from public.service_categories
+  where id = any(coalesce(p_category_ids, array[]::uuid[])) and is_active;
+  if v_category_count <> (select count(distinct x) from unnest(coalesce(p_category_ids, array[]::uuid[])) x) then
+    raise exception 'One or more selected services are unavailable';
+  end if;
+  select count(distinct id) into v_area_count
+  from public.service_areas
+  where id = any(coalesce(p_service_area_ids, array[]::uuid[])) and is_active;
+  if v_area_count <> (select count(distinct x) from unnest(coalesce(p_service_area_ids, array[]::uuid[])) x) then
+    raise exception 'One or more selected service areas are unavailable';
+  end if;
+  update public.profiles
+  set full_name = btrim(p_full_name), preferred_language = p_preferred_language, updated_at = now()
+  where id = v_user_id;
+  if not found then raise exception 'Provider profile was not initialized'; end if;
+  v_area_id := (coalesce(p_service_area_ids, array[]::uuid[]))[1];
+  update public.provider_profiles
+  set service_area_id = v_area_id, updated_at = now()
+  where user_id = v_user_id;
+  if not found then raise exception 'Provider profile was not initialized'; end if;
+  delete from public.provider_services where provider_id = v_user_id;
+  insert into public.provider_services (provider_id, category_id)
+  select v_user_id, x from unnest(coalesce(p_category_ids, array[]::uuid[])) x
+  on conflict do nothing;
+  delete from public.provider_service_areas where provider_id = v_user_id;
+  insert into public.provider_service_areas (provider_id, service_area_id)
+  select v_user_id, x from unnest(coalesce(p_service_area_ids, array[]::uuid[])) x
+  on conflict do nothing;
+end;
+$;
+
+revoke all on function public.provider_save_profile(text, text, uuid[], uuid[]) from public;
+grant execute on function public.provider_save_profile(text, text, uuid[], uuid[]) to authenticated;
 -- Safe view of the provider's own offers, including the public job title and
 -- area without exposing the customer's address or contact information.
 create or replace function public.provider_my_offers()
