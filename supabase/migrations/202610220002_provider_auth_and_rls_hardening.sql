@@ -454,7 +454,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_user_id uuid := (select auth.uid());
   v_area_id uuid;
@@ -502,7 +502,7 @@ begin
   select v_user_id, x from unnest(coalesce(p_service_area_ids, array[]::uuid[])) x
   on conflict do nothing;
 end;
-$;
+$$;
 
 revoke all on function public.provider_save_profile(text, text, uuid[], uuid[]) from public;
 grant execute on function public.provider_save_profile(text, text, uuid[], uuid[]) to authenticated;
