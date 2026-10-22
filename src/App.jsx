@@ -264,7 +264,7 @@ function App() {
   }), [jobs, query, categoryFilter, jobTab, submittedOffers]);
 
   const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 2800); };
-  const go = (next) => { setPage(current => { if (current !== next) setPageHistory(history => [...history, current].slice(-20)); return next; }); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
+  const go = (next) => { if (page !== next) setPageHistory(history => [...history, page].slice(-20)); setPage(next); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
   const goBack = () => {
     if (showRecharge) { setShowRecharge(false); return; }
     if (offerJob) { setOfferJob(null); return; }
