@@ -68,3 +68,44 @@ with check (provider_id = (select auth.uid()) and status = 'withdrawn');
 -- The shared database must not expose provider-facing job discovery through
 -- broad table reads. A safe discovery RPC must return only non-sensitive fields.
 -- Until that RPC is added, unmatched providers cannot read the jobs table.
+
+-- Providers may submit a pending recharge request only; approval metadata is
+-- exclusively controlled by management.
+drop policy if exists "provider creates own recharge request" on public.recharge_requests;
+create policy "provider creates own pending recharge request" on public.recharge_requests
+for insert to authenticated
+with check (
+  provider_id = (select auth.uid())
+  and status = 'pending'
+  and reviewed_by is null
+  and reviewed_at is null
+  and admin_note is null
+);
+
+-- Notification recipients may mark their own notifications read, but cannot
+-- rewrite notification content or change ownership from the client.
+create or replace function public.guard_notification_update()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if not public.has_role('management') and (
+    new.user_id is distinct from old.user_id
+    or new.title is distinct from old.title
+    or new.body is distinct from old.body
+    or new.event_type is distinct from old.event_type
+    or new.related_job_id is distinct from old.related_job_id
+    or new.created_at is distinct from old.created_at
+    or (old.read_at is not null and new.read_at is distinct from old.read_at)
+  ) then
+    raise exception 'Recipients may only mark their own notifications as read';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists notification_update_guard on public.notifications;
+create trigger notification_update_guard
+before update on public.notifications
+for each row execute function public.guard_notification_update();
