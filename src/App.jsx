@@ -126,6 +126,7 @@ function App() {
   const [walletRequests, setWalletRequests] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLedger, setWalletLedger] = useState([]);
+  const [walletCommissions, setWalletCommissions] = useState([]);
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState("");
   const [walletRefresh, setWalletRefresh] = useState(0);
@@ -334,10 +335,11 @@ function App() {
       setWalletLoading(true);
       setWalletError("");
       try {
-        const [accountResult, ledgerResult, requestsResult] = await Promise.all([
+        const [accountResult, ledgerResult, requestsResult, commissionsResult] = await Promise.all([
           supabase.from("wallet_accounts").select("balance, currency, updated_at").eq("provider_id", userId).maybeSingle(),
           supabase.from("wallet_ledger").select("id, amount, entry_type, description, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50),
-          supabase.from("recharge_requests").select("id, amount, utr, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50)
+          supabase.from("recharge_requests").select("id, amount, utr, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50),
+          supabase.from("provider_commission_charges").select("id, job_id, job_price, commission_amount, settled_amount, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50)
         ]);
         if (!active) return;
         const firstError = accountResult.error || ledgerResult.error || requestsResult.error;
@@ -345,6 +347,7 @@ function App() {
         if (!accountResult.error) setWalletBalance(Number(accountResult.data?.balance || 0));
         if (!ledgerResult.error) setWalletLedger(ledgerResult.data || []);
         if (!requestsResult.error) setWalletRequests(requestsResult.data || []);
+        if (!commissionsResult.error) setWalletCommissions(commissionsResult.data || []);
       } catch (error) {
         if (active) setWalletError(error?.message || "Could not connect to the wallet.");
       } finally {
@@ -490,7 +493,7 @@ function App() {
 
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} language={language} />}
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} matches={matchedJobs} loading={matchedJobsLoading} error={matchedJobsError} go={go} language={language} onStartJob={startMatchedJob} onCompleteJob={completeMatchedJob} />}
-          {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} loading={walletLoading} error={walletError} language={language} />}
+          {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} commissions={walletCommissions} loading={walletLoading} error={walletError} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
           {page === "verification" && <VerificationPage notify={notify} go={go} language={language} userId={authSession.user.id} />}
@@ -604,16 +607,19 @@ function MyWorkPage({ offers, matches, loading, error, go, language, onStartJob,
   </section>;
 }
 
-function WalletPage({ onRecharge, requests, balance, ledger, loading, error, language }) {
+function WalletPage({ onRecharge, requests, balance, ledger, commissions, loading, error, language }) {
   const hi = language === "Hindi";
   const commissionPaid = ledger.filter(item => item.entry_type === "commission").reduce((sum, item) => sum + Math.abs(Number(item.amount || 0)), 0);
+  const totalOutstanding = commissions.reduce((sum, item) => sum + Math.max(0, Number(item.commission_amount || 0) - Number(item.settled_amount || 0)), 0);
+  const pendingCommissions = commissions.filter(item => item.status === "pending" && Number(item.commission_amount || 0) > Number(item.settled_amount || 0));
   const totalRecharged = ledger.filter(item => item.entry_type === "recharge").reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const statusText = status => ({ pending: hi ? "जाँच बाकी" : "Pending review", approved: hi ? "स्वीकृत" : "Approved", rejected: hi ? "अस्वीकृत" : "Rejected" })[status] || status;
   return <section className="page-section">
     <div className="page-heading"><div><span className="eyebrow">{hi ? "आपके वॉलेट का हिसाब" : "YOUR WALLET LEDGER"}</span><h1>{hi ? "वॉलेट और कमाई" : "Wallet & earnings"}</h1><p>{hi ? "वास्तविक बैलेंस और लेन-देन का सर्वर रिकॉर्ड देखें।" : "View your server-recorded balance and transactions."}</p></div><div className="heading-icon"><Wallet size={24} /></div></div>
     {error && <div className="preview-notice"><CircleHelp size={17} /><span>{hi ? "वॉलेट लोड करने में समस्या: " : "Wallet loading issue: "}{error}</span></div>}
     <div className="wallet-hero"><div className="wallet-topline"><span><Wallet size={16} /> {hi ? "प्रदाता वॉलेट" : "PROVIDER WALLET"}</span><StatusPill tone="success">{hi ? "सर्वर बैलेंस" : "Server balance"}</StatusPill></div><span className="wallet-label">{hi ? "उपलब्ध बैलेंस" : "Available balance"}</span><strong className="wallet-balance">{loading ? "—" : `₹${balance.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</strong><p>{hi ? "बैलेंस केवल सत्यापित लेन-देन से बदलेगा।" : "Your balance changes only through verified ledger transactions."}</p><button className="button wallet-button" onClick={onRecharge} disabled={loading}><ArrowDownLeft size={16} /> {hi ? "रिचार्ज अनुरोध" : "Request recharge"}</button><div className="wallet-decoration"><div /><div /><div /></div></div>
-    <div className="wallet-stats"><div className="wallet-stat"><span><ArrowUpRight size={16} /> {hi ? "कुल कमीशन" : "Commission recorded"}</span><strong>₹{commissionPaid.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{hi ? "लेजर से" : "From ledger"}</small></div><div className="wallet-stat"><span><IndianRupee size={16} /> {hi ? "कुल रिचार्ज" : "Total recharged"}</span><strong>₹{totalRecharged.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{hi ? "स्वीकृत लेन-देन" : "Recorded transactions"}</small></div><div className="wallet-stat"><span><CreditCard size={16} /> {hi ? "रिचार्ज अनुरोध" : "Recharge requests"}</span><strong>{requests.length.toString().padStart(2, "0")}</strong><small>{hi ? "सर्वर पर दर्ज" : "Saved to server"}</small></div></div>
+    <div className="wallet-stats"><div className="wallet-stat"><span><ArrowUpRight size={16} /> {hi ? "कुल कमीशन" : "Commission recorded"}</span><strong>₹{commissionPaid.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{hi ? "लेजर से" : "From ledger"}</small></div><div className="wallet-stat"><span><IndianRupee size={16} /> {hi ? "कुल रिचार्ज" : "Total recharged"}</span><strong>₹{totalRecharged.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{hi ? "स्वीकृत लेन-देन" : "Recorded transactions"}</small></div><div className="wallet-stat"><span><CreditCard size={16} /> {hi ? "रिचार्ज अनुरोध" : "Recharge requests"}</span><strong>{requests.length.toString().padStart(2, "0")}</strong><small>{hi ? "सर्वर पर दर्ज" : "Saved to server"}</small></div><div className="wallet-stat"><span><Clock3 size={16} /> {hi ? "बकाया कमीशन" : "Outstanding commission"}</span><strong>₹{totalOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><small>{hi ? "आगे के रिचार्ज से समायोजित होगा" : "Settled from future approved recharge"}</small></div></div>
+    {pendingCommissions.length > 0 && <div className="panel transaction-panel"><div className="section-heading"><div><h2>{hi ? "बकाया कमीशन का विवरण" : "Outstanding commission details"}</h2><p>{hi ? "पूरा कमीशन उपलब्ध बैलेंस से न कट पाने पर यहाँ दिखेगा।" : "Any commission not fully covered by your wallet appears here."}</p></div><Clock3 size={21} className="muted-icon" /></div>{pendingCommissions.map(item => <div className="transaction-row" key={item.id}><div className="transaction-icon"><Clock3 size={17} /></div><div className="transaction-copy"><strong>{hi ? "काम" : "Job"} #{String(item.job_id || "").slice(0, 8).toUpperCase()}</strong><span>{hi ? "काम की कीमत" : "Job price"}: ₹{Number(item.job_price || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {new Date(item.created_at).toLocaleDateString(hi ? "hi-IN" : "en-IN")}</span><small>{hi ? "कमीशन" : "Commission"}: ₹{Number(item.commission_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {hi ? "जमा" : "Settled"}: ₹{Number(item.settled_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</small></div><StatusPill tone="warning">{hi ? "बकाया" : "Pending"}</StatusPill></div>)}</div>}
     <div className="panel transaction-panel"><div className="section-heading"><div><h2>{hi ? "हाल की गतिविधि" : "Recent activity"}</h2><p>{hi ? "हर प्रविष्टि वॉलेट लेजर से आती है।" : "Every entry is read from the wallet ledger."}</p></div><FileText size={21} className="muted-icon" /></div>
       {loading ? <div className="empty-state compact-empty"><Activity size={20} /> {hi ? "लेन-देन लोड हो रहे हैं…" : "Loading transactions…"}</div> : ledger.length ? ledger.map(item => <div className="transaction-row" key={item.id}><div className="transaction-icon">{Number(item.amount) >= 0 ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}</div><div className="transaction-copy"><strong>{item.description || item.entry_type}</strong><span>{new Date(item.created_at).toLocaleString(hi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })}</span></div><strong className="transaction-amount">{Number(item.amount) < 0 ? "−" : "+"}₹{Math.abs(Number(item.amount)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong><StatusPill tone={Number(item.amount) < 0 ? "warning" : "success"}>{item.entry_type}</StatusPill></div>) : <div className="empty-state compact-empty"><Activity size={22} /><strong>{hi ? "अभी कोई लेन-देन नहीं" : "No transactions yet"}</strong><p>{hi ? "स्वीकृत रिचार्ज या सेवा लेन-देन यहाँ दिखेंगे।" : "Approved recharges and service transactions will appear here."}</p></div>}
     </div>
