@@ -116,6 +116,12 @@ function App() {
   const isHindi = language === "Hindi";
   const [submittedOffers, setSubmittedOffers] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLedger, setWalletLedger] = useState([]);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletError, setWalletError] = useState("");
+  const [walletRefresh, setWalletRefresh] = useState(0);
+  const [rechargeSubmitting, setRechargeSubmitting] = useState(false);
   const [providerAvailable, setProviderAvailable] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -260,6 +266,35 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    const userId = authSession?.user?.id;
+    if (!userId) return;
+    let active = true;
+    const loadWallet = async () => {
+      setWalletLoading(true);
+      setWalletError("");
+      try {
+        const [accountResult, ledgerResult, requestsResult] = await Promise.all([
+          supabase.from("wallet_accounts").select("balance, currency, updated_at").eq("provider_id", userId).maybeSingle(),
+          supabase.from("wallet_ledger").select("id, amount, entry_type, description, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50),
+          supabase.from("recharge_requests").select("id, amount, utr, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50)
+        ]);
+        if (!active) return;
+        const firstError = accountResult.error || ledgerResult.error || requestsResult.error;
+        if (firstError) setWalletError(firstError.message || "Could not load wallet information.");
+        if (!accountResult.error) setWalletBalance(Number(accountResult.data?.balance || 0));
+        if (!ledgerResult.error) setWalletLedger(ledgerResult.data || []);
+        if (!requestsResult.error) setWalletRequests(requestsResult.data || []);
+      } catch (error) {
+        if (active) setWalletError(error?.message || "Could not connect to the wallet.");
+      } finally {
+        if (active) setWalletLoading(false);
+      }
+    };
+    void loadWallet();
+    return () => { active = false; };
+  }, [authSession?.user?.id, walletRefresh]);
+
   const updateAvailability = async nextValue => {
     const userId = authSession?.user?.id;
     if (!userId) return;
@@ -299,14 +334,34 @@ function App() {
     setOfferJob(null); setOfferPrice(""); setOfferNote("");
     notify("Your offer was sent to the customer.");
   };
-  const requestRecharge = (event) => {
+  const requestRecharge = async (event) => {
     event.preventDefault();
-    if (!Number.isFinite(Number(rechargeAmount)) || Number(rechargeAmount) < 100 || Number(rechargeAmount) > 50000) { notify("Enter an amount between ₹100 and ₹50,000."); return; }
+    if (!Number.isFinite(Number(rechargeAmount)) || Number(rechargeAmount) < 100 || Number(rechargeAmount) > 50000) { notify(isHindi ? "₹100 से ₹50,000 के बीच राशि चुनें।" : "Enter an amount between ₹100 and ₹50,000."); return; }
     const utr = rechargeUtr.trim();
-    if (utr && !/^[A-Za-z0-9-]{8,22}$/.test(utr)) { notify("Enter a valid 8–22 character UTR/reference, or leave it blank."); return; }
-    setWalletRequests(current => [...current, { amount: Number(rechargeAmount), utr, status: "Preview only", id: Date.now() }]);
-    setShowRecharge(false); setRechargeUtr("");
-    notify("Demo only: recharge request preview saved.");
+    if (!/^[A-Za-z0-9-]{8,22}$/.test(utr)) { notify(isHindi ? "वैध 8–22 अक्षर का UTR / संदर्भ नंबर जरूरी है।" : "A valid 8–22 character UTR/reference is required."); return; }
+    if (!authSession?.user?.id) { notify("Please sign in again."); return; }
+    setRechargeSubmitting(true);
+    try {
+      const { error } = await supabase.from("recharge_requests").insert({
+        provider_id: authSession.user.id,
+        amount: Number(rechargeAmount),
+        utr,
+        status: "pending"
+      });
+      if (error) {
+        if (error.code === "23505") notify(isHindi ? "यह UTR पहले इस्तेमाल हो चुका है।" : "This UTR has already been submitted.");
+        else notify(error.message || (isHindi ? "रिचार्ज अनुरोध भेजा नहीं जा सका।" : "Could not submit recharge request."));
+        return;
+      }
+      setShowRecharge(false);
+      setRechargeUtr("");
+      setWalletRefresh(value => value + 1);
+      notify(isHindi ? "अनुरोध भेज दिया गया। प्रबंधन भुगतान की जाँच करेगा।" : "Request submitted. Management will verify the payment.");
+    } catch (error) {
+      notify(error?.message || "Could not submit the recharge request. Check your connection.");
+    } finally {
+      setRechargeSubmitting(false);
+    }
   };
 
   const offerResults = submittedOffers.length ? <div className="job-list">{submittedOffers.map(offer => <article className="job-card work-offer-card" key={offer.jobId}><div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title || (isHindi ? "काम का ऑफ़र" : "Job offer")}</h3><span className="job-id">{String(offer.jobId || "").slice(0,8).toUpperCase()}</span></div><p className="job-category">{[offer.area, offer.city].filter(Boolean).join(", ")}</p></div><StatusPill tone={offer.status === "accepted" ? "success" : offer.status === "rejected" || offer.status === "withdrawn" ? "neutral" : "warning"}>{offer.status || "pending"}</StatusPill></div><div className="work-offer-bottom"><div><span className="eyebrow">{isHindi ? "आपका ऑफ़र" : "YOUR OFFER"}</span><strong className="work-offer-price">₹{Number(offer.price).toLocaleString("en-IN")}</strong></div><div className="work-offer-message">{offer.note || (isHindi ? "कोई संदेश नहीं जोड़ा" : "No message added")}</div></div></article>)}</div> : <div className="empty-state"><ClipboardList size={25} /><strong>{isHindi ? "अभी कोई ऑफ़र नहीं" : "No offers sent yet"}</strong><p>{isHindi ? "उपलब्ध काम देखें और अपनी कीमत भेजें।" : "Browse available jobs and send your price."}</p><button className="button button-secondary" onClick={() => setJobTab("Available")}>{isHindi ? "काम देखें" : "Browse jobs"}</button></div>;
@@ -349,7 +404,7 @@ function App() {
 
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} language={language} />}
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} language={language} notify={notify} />}
-          {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} language={language} />}
+          {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} loading={walletLoading} error={walletError} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
           {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
@@ -364,7 +419,7 @@ function App() {
 
       {offerJob && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setOfferJob(null); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="offer-title"><div className="modal-heading"><div><span className="eyebrow">JOB OFFER</span><h2 id="offer-title">{isHindi ? "अपना ऑफ़र भेजें" : "Send your offer"}</h2><p>{offerJob.title}</p></div><IconButton label="Close dialog" onClick={() => setOfferJob(null)}><X size={20} /></IconButton></div><div className="preview-notice"><Sparkles size={17} /><span>Offers are sent to the customer only when your provider account is verified and the job is open.</span></div><form onSubmit={submitOffer}><label htmlFor="offer-price">{isHindi ? "आपकी कीमत (₹)" : "Your price (₹)"}</label><div className="price-input"><IndianRupee size={19} /><input id="offer-price" type="number" min="1" step="1" required value={offerPrice} onChange={event => setOfferPrice(event.target.value)} placeholder="Enter your offer amount" /></div><label htmlFor="offer-note">{isHindi ? "छोटा संदेश" : "Short message"} <span className="optional">{isHindi ? "वैकल्पिक" : "Optional"}</span></label><textarea id="offer-note" value={offerNote} onChange={event => setOfferNote(event.target.value)} maxLength="240" placeholder="Tell the customer how you can help…" rows="3" /><div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setOfferJob(null)}>{isHindi ? "रद्द करें" : "Cancel"}</button><button type="submit" className="button button-primary">{isHindi ? "ऑफ़र भेजें" : "Send offer"} <ArrowRight size={16} /></button></div></form></section></div>}
 
-      {showRecharge && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShowRecharge(false); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="recharge-title"><div className="modal-heading"><div><span className="eyebrow">WALLET</span><h2 id="recharge-title">{isHindi ? "रिचार्ज अनुरोध" : "Request a recharge"}</h2><p>{isHindi ? "रिचार्ज अनुरोध का केवल डेमो देखें।" : "Choose an amount to preview a recharge request."}</p></div><IconButton label="Close dialog" onClick={() => setShowRecharge(false)}><X size={20} /></IconButton></div><div className="preview-notice"><ShieldCheck size={17} /><span>{isHindi ? "डेमो में कोई भुगतान नहीं होगा। UTR देने से भुगतान सत्यापित नहीं होता।" : "No money will be collected in preview mode. Entering a UTR does not verify a payment."}</span></div><form onSubmit={requestRecharge}><label htmlFor="recharge-amount">{isHindi ? "रिचार्ज राशि" : "Recharge amount"}</label><div className="amount-options">{["100", "200", "500", "1000", "2000"].map(amount => <button type="button" key={amount} className={rechargeAmount === amount ? "chosen" : ""} onClick={() => setRechargeAmount(amount)}>₹{Number(amount).toLocaleString("en-IN")}</button>)}</div><div className="price-input"><IndianRupee size={19} /><input id="recharge-amount" type="number" min="100" max="50000" step="1" value={rechargeAmount} onChange={event => setRechargeAmount(event.target.value)} required /></div><label htmlFor="recharge-utr">{isHindi ? "UPI UTR / संदर्भ संख्या (वैकल्पिक डेमो)" : "UPI UTR / reference (optional preview)"}</label><input className="form-control" id="recharge-utr" value={rechargeUtr} onChange={event => setRechargeUtr(event.target.value.slice(0,22))} placeholder={isHindi ? "डेमो UTR दर्ज करें" : "Enter demo UTR"} autoComplete="off" /><div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setShowRecharge(false)}>{isHindi ? "रद्द करें" : "Cancel"}</button><button type="submit" className="button button-primary">{isHindi ? "डेमो अनुरोध" : "Preview request"} <ArrowRight size={16} /></button></div></form></section></div>}
+      {showRecharge && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setShowRecharge(false); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="recharge-title"><div className="modal-heading"><div><span className="eyebrow">WALLET</span><h2 id="recharge-title">{isHindi ? "रिचार्ज अनुरोध" : "Request a recharge"}</h2><p>{isHindi ? "भुगतान करने के बाद UTR भेजें; प्रबंधन जाँच करेगा।" : "Submit the UTR after payment; management will verify it."}</p></div><IconButton label="Close dialog" onClick={() => setShowRecharge(false)}><X size={20} /></IconButton></div><div className="preview-notice"><ShieldCheck size={17} /><span>{isHindi ? "यह फ़ॉर्म भुगतान नहीं करता। गलत UTR देने पर अनुरोध अस्वीकार हो सकता है।" : "This form does not collect payment. An incorrect UTR may be rejected."}</span></div><form onSubmit={requestRecharge}><label htmlFor="recharge-amount">{isHindi ? "रिचार्ज राशि" : "Recharge amount"}</label><div className="amount-options">{["100", "200", "500", "1000", "2000"].map(amount => <button type="button" key={amount} className={rechargeAmount === amount ? "chosen" : ""} onClick={() => setRechargeAmount(amount)}>₹{Number(amount).toLocaleString("en-IN")}</button>)}</div><div className="price-input"><IndianRupee size={19} /><input id="recharge-amount" type="number" min="100" max="50000" step="1" value={rechargeAmount} onChange={event => setRechargeAmount(event.target.value)} required /></div><label htmlFor="recharge-utr">{isHindi ? "UPI UTR / संदर्भ संख्या" : "UPI UTR / reference"}</label><input className="form-control" id="recharge-utr" value={rechargeUtr} onChange={event => setRechargeUtr(event.target.value.slice(0,22))} placeholder={isHindi ? "8–22 अक्षर का UTR" : "Enter 8–22 character UTR"} required minLength="8" maxLength="22" autoComplete="off" /><div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setShowRecharge(false)}>{isHindi ? "रद्द करें" : "Cancel"}</button><button type="submit" className="button button-primary">{rechargeSubmitting ? (isHindi ? "भेज रहे हैं…" : "Submitting…") : (isHindi ? "अनुरोध भेजें" : "Submit request")} <ArrowRight size={16} /></button></div></form></section></div>}
 
       {toast && <div className="toast" role="status"><Check size={17} />{toast}</div>}
     </div>
