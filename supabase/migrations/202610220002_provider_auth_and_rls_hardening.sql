@@ -329,3 +329,32 @@ $$;
 
 revoke all on function public.provider_available_jobs() from public;
 grant execute on function public.provider_available_jobs() to authenticated;
+
+-- Safe view of the provider's own offers, including the public job title and
+-- area without exposing the customer's address or contact information.
+create or replace function public.provider_my_offers()
+returns table (
+  job_id uuid,
+  job_title text,
+  offered_price numeric,
+  message text,
+  status public.offer_status,
+  created_at timestamptz,
+  city text,
+  area_name text
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select o.job_id, j.title, o.offered_price, o.message, o.status, o.created_at, j.city, j.area_name
+  from public.job_offers o
+  join public.jobs j on j.id = o.job_id
+  where o.provider_id = (select auth.uid())
+    and public.has_role('provider')
+  order by o.created_at desc;
+$$;
+
+revoke all on function public.provider_my_offers() from public;
+grant execute on function public.provider_my_offers() to authenticated;
