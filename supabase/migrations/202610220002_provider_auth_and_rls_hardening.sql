@@ -343,6 +343,54 @@ $$;
 revoke all on function public.provider_available_jobs() from public;
 grant execute on function public.provider_available_jobs() to authenticated;
 
+-- Private verification-document metadata and storage bucket.
+create table if not exists public.provider_verification_documents (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid not null references public.provider_profiles(user_id) on delete cascade,
+  document_type text not null check (document_type in ('identity_proof', 'skill_certificate', 'experience_proof')),
+  storage_path text not null unique,
+  original_filename text not null,
+  mime_type text not null,
+  file_size_bytes bigint not null check (file_size_bytes > 0 and file_size_bytes <= 10485760),
+  status public.verification_status not null default 'pending',
+  reviewer_note text,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.provider_verification_documents enable row level security;
+drop policy if exists "provider reads own verification documents" on public.provider_verification_documents;
+create policy "provider reads own verification documents" on public.provider_verification_documents
+for select to authenticated using (provider_id = (select auth.uid()) and public.has_role('provider'));
+drop policy if exists "provider submits own verification documents" on public.provider_verification_documents;
+create policy "provider submits own verification documents" on public.provider_verification_documents
+for insert to authenticated with check (
+  provider_id = (select auth.uid()) and public.has_role('provider')
+  and status = 'pending' and reviewer_note is null and reviewed_by is null and reviewed_at is null
+);
+drop policy if exists "management reviews verification documents" on public.provider_verification_documents;
+create policy "management reviews verification documents" on public.provider_verification_documents
+for all to authenticated using (public.has_role('management')) with check (public.has_role('management'));
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('provider-verification', 'provider-verification', false, 10485760, array['image/jpeg','image/png','image/webp','application/pdf'])
+on conflict (id) do update set public = false, file_size_limit = 10485760, allowed_mime_types = excluded.allowed_mime_types;
+drop policy if exists "provider uploads own private verification documents" on storage.objects;
+create policy "provider uploads own private verification documents" on storage.objects
+for insert to authenticated with check (
+  bucket_id = 'provider-verification'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+  and public.has_role('provider')
+);
+drop policy if exists "owners and management read private verification documents" on storage.objects;
+create policy "owners and management read private verification documents" on storage.objects
+for select to authenticated using (
+  bucket_id = 'provider-verification'
+  and (
+    (storage.foldername(name))[1] = (select auth.uid())::text
+    or public.has_role('management')
+  )
+);
 -- Atomically save a provider's editable profile and service coverage.
 create or replace function public.provider_save_profile(
   p_full_name text,
