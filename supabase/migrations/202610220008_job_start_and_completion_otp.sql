@@ -150,7 +150,7 @@ begin
     (v_user_id, 'Work completed', 'The completion code was verified and the job is marked complete.', 'job_completed', p_job_id);
   return true;
 end;
-$;
+$$;
 
 revoke all on function public.provider_start_matched_job(uuid) from public, anon;
 revoke all on function public.customer_generate_completion_otp(uuid) from public, anon;
