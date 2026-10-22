@@ -104,3 +104,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 /* FindVia account recovery links */
 .account-mode-links{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}.account-mode-links button{border:0;background:transparent;padding:4px 0;color:#176b50;font-size:11px;font-weight:700;text-align:left}.account-mode-links button:hover{text-decoration:underline}
+
+
+/* Interactive notification rows are buttons, but should keep the clean list appearance. */
+.notification-clickable{width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;border-radius:9px;}
+.notification-clickable:hover{background:#f6faf7;}
+.notification-clickable:focus-visible{outline:2px solid #2f8563;outline-offset:2px;}
+.notification-unread{background:#f3faf6;}
