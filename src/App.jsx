@@ -265,35 +265,46 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
 
   const showResetMessage = text => {
     setMessage(text);
+    setAuthMessage("");
     const status = document.getElementById("auth-reset-status");
     if (status) {
       status.textContent = text;
       status.style.display = "block";
+      status.hidden = false;
     }
   };
 
   const sendResetLink = async () => {
-    setAuthMessage("");
     setNeedsEmailConfirm(false);
-    showResetMessage(hi ? "रीसेट बटन दब गया है — ईमेल जाँच रहे हैं…" : "Reset button clicked — checking your email…");
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      showResetMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first.");
+      const text = hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first.";
+      showResetMessage(text);
+      window.alert(text);
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      showResetMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
+      const text = hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.";
+      showResetMessage(text);
+      window.alert(text);
       return;
     }
+    const waiting = hi ? "रीसेट लिंक का अनुरोध भेज रहे हैं…" : "Sending password reset request…";
+    showResetMessage(waiting);
+    window.alert(waiting);
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
       });
       if (error) throw error;
-      showResetMessage(hi ? "अगर इस ईमेल का खाता है, तो reset link भेजने का अनुरोध स्वीकार हुआ। Inbox और spam folder देखें।" : "The reset request was accepted if an account exists. Check your inbox and spam folder.");
+      const success = hi ? "अनुरोध स्वीकार हुआ। अपने ईमेल के Inbox और Spam फ़ोल्डर देखें।" : "Reset request accepted. Check your email Inbox and Spam folder.";
+      showResetMessage(success);
+      window.alert(success);
     } catch (error) {
-      showResetMessage(error?.message || (hi ? "रीसेट लिंक नहीं भेजा जा सका। कृपया फिर कोशिश करें।" : "Could not request a reset link. Please try again."));
+      const failure = error?.message || (hi ? "रीसेट लिंक का अनुरोध विफल हुआ। कृपया फिर कोशिश करें।" : "Password reset request failed. Please try again.");
+      showResetMessage(failure);
+      window.alert(failure);
     } finally {
       setBusy(false);
     }
