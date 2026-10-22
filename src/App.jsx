@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase";
 import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight, Bell, BriefcaseBusiness,
@@ -92,6 +92,7 @@ function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileRefresh, setProfileRefresh] = useState(0);
   const [providerVerificationStatus, setProviderVerificationStatus] = useState("not_submitted");
   const [page, setPage] = useState("home");
   const [pageHistory, setPageHistory] = useState([]);
@@ -133,6 +134,9 @@ function App() {
   const [walletRefresh, setWalletRefresh] = useState(0);
   const [rechargeSubmitting, setRechargeSubmitting] = useState(false);
   const [providerAvailable, setProviderAvailable] = useState(false);
+  const [detailRefresh, setDetailRefresh] = useState(0);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const touchStartY = useRef(null);
   useEffect(() => {
     let alive = true;
     supabase.auth.getSession().then(({ data, error }) => {
@@ -196,7 +200,7 @@ function App() {
     };
     void loadProfile();
     return () => { active = false; };
-  }, [authSession?.user?.id]);
+  }, [authSession?.user?.id, profileRefresh]);
 
   useEffect(() => {
     const userId = authSession?.user?.id;
@@ -265,17 +269,55 @@ function App() {
   }), [jobs, query, categoryFilter, jobTab, submittedOffers]);
 
   const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 2800); };
-  const go = (next) => { if (page !== next) setPageHistory(history => [...history, page].slice(-20)); setPage(next); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
+  const go = (next) => {
+    if (next === "home") setPageHistory([]);
+    else if (page !== next) setPageHistory(history => [...history, page].slice(-20));
+    setPage(next); setSelectedJob(null); setOfferJob(null); setMobileMenu(false);
+  };
   const goBack = () => {
     if (showRecharge) { setShowRecharge(false); return; }
     if (offerJob) { setOfferJob(null); return; }
     if (selectedJob) { setSelectedJob(null); return; }
     const previous = pageHistory[pageHistory.length - 1];
-    setPage(previous || "home");
-    setPageHistory(history => history.slice(0, -1));
+    const target = previous || "home";
+    setPage(target);
+    setPageHistory(history => target === "home" ? [] : history.slice(0, -1));
     setMobileMenu(false);
     setNotificationsOpen(false);
   };
+  const refreshVisiblePage = () => {
+    if (page === "home" || page === "jobs" || page === "work") setJobsRefresh(value => value + 1);
+    else if (page === "wallet") setWalletRefresh(value => value + 1);
+    else if (page === "notifications") setNotificationsRefresh(value => value + 1);
+    else if (page === "profile") setProfileRefresh(value => value + 1);
+    else setDetailRefresh(value => value + 1);
+  };
+  const handleTouchStart = event => { touchStartY.current = event.touches?.[0]?.clientY ?? null; };
+  const handleTouchEnd = event => {
+    const endY = event.changedTouches?.[0]?.clientY;
+    const startY = touchStartY.current;
+    touchStartY.current = null;
+    if (startY == null || endY == null || window.scrollY > 2 || endY - startY < 90 || pullRefreshing) return;
+    setPullRefreshing(true);
+    refreshVisiblePage();
+    window.setTimeout(() => setPullRefreshing(false), 900);
+  };
+  useEffect(() => {
+    if (!authSession?.user?.id) return;
+    const refreshOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      setJobsRefresh(value => value + 1);
+      setNotificationsRefresh(value => value + 1);
+      setWalletRefresh(value => value + 1);
+      setProfileRefresh(value => value + 1);
+    };
+    window.addEventListener("focus", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      window.removeEventListener("focus", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [authSession?.user?.id]);
   const markNotificationRead = async notificationId => {
     const row = notifications.find(item => item.id === notificationId);
     if (!row || row.read_at) return;
@@ -477,7 +519,7 @@ function App() {
   const jobsResults = jobsLoading ? <div className="empty-state"><Activity size={25} /><strong>{isHindi ? "काम लोड हो रहे हैं…" : "Loading jobs…"}</strong></div> : jobsError ? <div className="empty-state"><CircleHelp size={25} /><strong>{isHindi ? "काम लोड नहीं हो सके" : "Could not load jobs"}</strong><p>{jobsError}</p><button className="button button-secondary" onClick={() => window.location.reload()}>{isHindi ? "फिर कोशिश करें" : "Retry"}</button></div> : filteredJobs.length ? <div className="job-list">{filteredJobs.map(job => <JobCard key={job.id} job={job} onOpen={setSelectedJob} onOffer={setOfferJob} language={language} />)}</div> : <div className="empty-state"><Search size={25} /><strong>{isHindi ? "कोई काम नहीं मिला" : "No jobs found"}</strong><p>{isHindi ? "आपका प्रोफ़ाइल सत्यापित और उपलब्ध होने पर आपके क्षेत्र के काम यहाँ दिखेंगे।" : "Jobs appear here when your provider profile is verified, available and matched to a service area."}</p><button className="button button-secondary" onClick={() => { setQuery(""); setCategoryFilter("All categories"); setJobTab("Available"); }}>{isHindi ? "फ़िल्टर हटाएँ" : "Clear filters"}</button></div>;
 
   if (authLoading) {
-    return <div className="account-loading"><button className="language-toggle auth-language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"}</button><div className="brand-mark"><Activity size={24} /></div><h1>FindVia Provider</h1><p>{isHindi ? "आपका सुरक्षित सत्र खोला जा रहा है…" : "Restoring your secure session…"}</p></div>;
+    return <div className="account-loading"><button className="language-toggle auth-language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"}</button><div className="startup-wordmark" aria-label="FindVia"><span>FindVia</span></div><h1>FindVia Provider</h1><div className="startup-progress" aria-hidden="true"><span /></div><p>{isHindi ? "आपका सुरक्षित सत्र खोला जा रहा है…" : "Restoring your secure session…"}</p></div>;
   }
   if (!authSession || new URLSearchParams(window.location.search).get("reset-password") === "true") {
     return <AccountAccessPage language={language} setLanguage={setLanguage} authMessage={authMessage} setAuthMessage={setAuthMessage} initialMode={new URLSearchParams(window.location.search).get("reset-password") === "true" ? "reset" : "signin"} />;
@@ -498,15 +540,15 @@ function App() {
 
       {mobileMenu && <button className="scrim" aria-label="Close menu overlay" onClick={() => setMobileMenu(false)} />}
 
-      <main className="main-panel">
+      <main className="main-panel" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         <header className="topbar">
-          <div className="topbar-left">{(page !== "home" || pageHistory.length > 0 || selectedJob || offerJob || showRecharge) && <IconButton label={isHindi ? "पीछे जाएँ" : "Go back"} className="back-top-button" onClick={goBack}><ChevronLeft size={22} strokeWidth={2.4} /></IconButton>}<IconButton label={isHindi ? "मेनू खोलें" : "Open menu"} className="menu-toggle" onClick={() => setMobileMenu(true)}><Menu size={21} /></IconButton><div className="breadcrumb">{isHindi ? "प्रदाता कार्यक्षेत्र" : "Provider workspace"} <span>/</span> <strong>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल",account:"खाता",verification:"सत्यापन",notifications:"सूचनाएँ",support:"सहायता"}[page] || "विवरण") : (navItems.find(item => item.id === page)?.label || "Details")}</strong></div></div>
+          <div className="topbar-left">{(page !== "home" || selectedJob || offerJob || showRecharge) && <IconButton label={isHindi ? "पीछे जाएँ" : "Go back"} className="back-top-button" onClick={goBack}><ChevronLeft size={22} strokeWidth={2.4} /></IconButton>}<IconButton label={isHindi ? "मेनू खोलें" : "Open menu"} className="menu-toggle" onClick={() => setMobileMenu(true)}><Menu size={21} /></IconButton><div className="breadcrumb">{isHindi ? "प्रदाता कार्यक्षेत्र" : "Provider workspace"} <span>/</span> <strong>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल",account:"खाता",verification:"सत्यापन",notifications:"सूचनाएँ",support:"सहायता"}[page] || "विवरण") : (navItems.find(item => item.id === page)?.label || "Details")}</strong></div></div>
           <div className="topbar-actions"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "Switch app language to English" : "ऐप की भाषा हिंदी करें"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"} <ChevronDown size={13} /></button><IconButton label={isHindi ? "सूचनाएँ" : "Notifications"} onClick={() => setNotificationsOpen(!notificationsOpen)}><Bell size={19} />{unreadNotificationCount > 0 && <i className="notification-dot" /> }</IconButton><div className="topbar-avatar">{profileName.trim().split(/\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV"}</div></div>
         </header>
 
         {notificationsOpen && <div className="notification-popover"><div className="popover-heading"><strong>{isHindi ? "सूचनाएँ" : "Notifications"}</strong><button onClick={() => setNotificationsOpen(false)} aria-label="Close notifications"><X size={16} /></button></div>{notificationsLoading ? <div className="empty-state compact-empty">{isHindi ? "लोड हो रहा है…" : "Loading…"}</div> : notificationsError ? <div className="empty-state compact-empty">{isHindi ? "सूचनाएँ लोड नहीं हुईं" : "Could not load notifications"}</div> : notifications.length ? notifications.slice(0,4).map(item => <button type="button" className={`notification-item notification-clickable ${item.read_at ? "" : "notification-unread"}`} key={item.id} onClick={() => { void markNotificationRead(item.id); setNotificationsOpen(false); go("notifications"); }}><span className="notification-symbol green"><Bell size={16} /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(isHindi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })}</small></div></button>) : <div className="empty-state compact-empty">{isHindi ? "अभी कोई सूचना नहीं है।" : "No notifications yet."}</div>}<button className="text-button" onClick={() => { setNotificationsOpen(false); go("notifications"); }}>{isHindi ? "सभी सूचनाएँ देखें" : "View all notifications"}</button></div>}
 
-        <div className="page-content">
+        <div className="page-content">{pullRefreshing && <div className="pull-refresh-indicator" role="status"><Activity size={16} /> {isHindi ? "FindVia अपडेट हो रहा है…" : "Refreshing FindVia…"}</div>}
           {page === "home" && !selectedJob && <HomePage go={go} onOpenJob={setSelectedJob} onOffer={setOfferJob} submittedOffers={submittedOffers} jobs={jobs} jobsLoading={jobsLoading} jobsError={jobsError} available={providerAvailable} setAvailable={updateAvailability} walletBalance={walletBalance} walletLoading={walletLoading} verificationStatus={providerVerificationStatus} language={language} name={profileName} />}
           {page === "jobs" && !selectedJob && <section className="page-section"><div className="page-heading"><div><span className="eyebrow">{isHindi ? "अपना अगला काम खोजें" : "FIND YOUR NEXT JOB"}</span><h1>{isHindi ? "काम के अनुरोध" : "Job requests"}</h1><p>{isHindi ? "अपने कौशल और सेवा क्षेत्र से मेल खाने वाला काम देखें।" : "Explore work that matches your skills and service area."}</p></div><div className="heading-icon"><BriefcaseBusiness size={23} /></div></div><div className="filter-row"><div className="search-field"><Search size={18} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder={isHindi ? "काम या क्षेत्र खोजें" : "Search jobs or areas"} aria-label={isHindi ? "काम या क्षेत्र खोजें" : "Search jobs or areas"} /><kbd>/</kbd></div><button className={`button button-secondary filter-button ${filterOpen ? "filter-active" : ""}`} aria-expanded={filterOpen} onClick={() => setFilterOpen(open => !open)}><Filter size={16} /> {isHindi ? "फ़िल्टर" : "Filters"}{categoryFilter !== "All categories" && <span className="filter-dot" />}</button></div>{filterOpen && <div className="filter-panel"><label htmlFor="job-category-filter">{isHindi ? "सेवा श्रेणी" : "Service category"}</label><select id="job-category-filter" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}><option value="All categories">{isHindi ? "सभी श्रेणियाँ" : "All categories"}</option>{[...new Set(jobs.map(job => job.category))].map(category => <option key={category}>{category}</option>)}</select><button className="text-button" onClick={() => { setCategoryFilter("All categories"); setQuery(""); }}>{isHindi ? "फ़िल्टर हटाएँ" : "Clear filters"}</button></div>}<div className="tabs" role="tablist" aria-label="Job filters">{["Available", "My offers"].map(tab => <button role="tab" aria-selected={jobTab === tab} className={jobTab === tab ? "selected" : ""} key={tab} onClick={() => setJobTab(tab)}>{isHindi ? (tab === "Available" ? "उपलब्ध काम" : "मेरे ऑफ़र") : tab}{tab === "My offers" && submittedOffers.length > 0 && <span className="tab-count">{submittedOffers.length}</span>}</button>)}</div><div className="section-subheading"><strong>{jobTab === "Available" ? (isHindi ? "आपके लिए सुझाव" : "Recommended for you") : (isHindi ? "आपके भेजे ऑफ़र" : "Offers you sent")}</strong><span>{jobTab === "Available" ? filteredJobs.length : submittedOffers.length} {isHindi ? "काम" : (jobTab === "Available" ? (filteredJobs.length === 1 ? "job" : "jobs") : (submittedOffers.length === 1 ? "offer" : "offers"))}</span></div>
           {jobTab === "My offers" ? offerResults : jobsResults}</section>}
@@ -515,10 +557,10 @@ function App() {
           {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} matches={matchedJobs} loading={matchedJobsLoading} error={matchedJobsError} go={go} language={language} onStartJob={startMatchedJob} onCompleteJob={completeMatchedJob} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} onRefresh={() => setWalletRefresh(value => value + 1)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} commissions={walletCommissions} loading={walletLoading} error={walletError} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
-          {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} setLanguage={setLanguage} />}
-          {page === "verification" && <VerificationPage notify={notify} go={go} language={language} userId={authSession.user.id} />}
+          {page === "account" && <AccountAccessPage key={detailRefresh} go={go} notify={notify} language={language} setLanguage={setLanguage} />}
+          {page === "verification" && <VerificationPage key={detailRefresh} notify={notify} go={go} language={language} userId={authSession.user.id} />}
           {page === "notifications" && <NotificationsPage go={go} language={language} notifications={notifications} loading={notificationsLoading} error={notificationsError} onRead={markNotificationRead} onRefresh={() => setNotificationsRefresh(value => value + 1)} />}
-          {page === "support" && <SupportPage notify={notify} language={language} userId={authSession.user.id} />}
+          {page === "support" && <SupportPage key={detailRefresh} notify={notify} language={language} userId={authSession.user.id} />}
         </div>
 
         <footer className="app-footer"><span>© 2026 FindVia</span><span><ShieldCheck size={14} /> {isHindi ? "आपका काम। आपकी तरक्की।" : "Your work. Your growth."}</span><span>{isHindi ? "बीटा संस्करण · कुछ सुविधाएँ अभी बन रही हैं" : "Beta build · Some workflows are still in progress"}</span></footer>
