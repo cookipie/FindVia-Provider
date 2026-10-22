@@ -86,6 +86,7 @@ function App() {
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [jobsError, setJobsError] = useState("");
+  const [jobsRefresh, setJobsRefresh] = useState(0);
   const [page, setPage] = useState("home");
   const [mobileMenu, setMobileMenu] = useState(false);
   const [query, setQuery] = useState("");
@@ -188,7 +189,7 @@ function App() {
     };
     void loadProviderData();
     return () => { active = false; };
-  }, [authSession?.user?.id]);
+  }, [authSession?.user?.id, jobsRefresh]);
 
   const filteredJobs = useMemo(() => jobs.filter(job => {
     const text = `${job.title} ${job.category} ${job.area}`.toLowerCase();
@@ -204,6 +205,7 @@ function App() {
       const { data, error } = await supabase.from("provider_profiles").update({ is_available: nextValue }).eq("user_id", userId).select("user_id").maybeSingle();
       if (error || !data) { notify(error?.message || "Provider profile is not ready yet. Complete account setup first."); return; }
       setProviderAvailable(nextValue);
+      setJobsRefresh(value => value + 1);
     } catch (error) {
       notify(error?.message || "Could not update availability. Check your connection.");
     }
@@ -230,7 +232,8 @@ function App() {
       notify(error?.message || "Offer could not be sent. Check your connection.");
       return;
     }
-    setSubmittedOffers(current => [{ jobId: offerJob.id, title: offerJob.title, price: Number(offerPrice), note: offerNote, status: "pending" }, ...current.filter(item => item.jobId !== offerJob.id)]);
+    setSubmittedOffers(current => [{ jobId: offerJob.id, title: offerJob.title, price: Number(offerPrice), note: offerNote, status: "pending", area: offerJob.area || "" }, ...current.filter(item => item.jobId !== offerJob.id)]);
+    setJobsRefresh(value => value + 1);
     setOfferJob(null); setOfferPrice(""); setOfferNote("");
     notify("Your offer was sent to the customer.");
   };
