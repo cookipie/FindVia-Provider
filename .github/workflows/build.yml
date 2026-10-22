@@ -40,6 +40,45 @@ jobs:
         with:
           path: dist
 
+  android-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: https://bjaepfedteedkntwgnmy.supabase.co
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: npm install
+      - name: Build web assets
+        run: npm run build
+      - name: Generate Android project
+        run: npx cap add android
+      - name: Sync app into Android project
+        run: npx cap sync android
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: findvia-provider-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
   deploy:
     environment:
       name: github-pages
