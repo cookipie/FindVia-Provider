@@ -275,6 +275,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
   };
 
   const sendResetLink = async () => {
+    if (busy) return;
     setNeedsEmailConfirm(false);
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
@@ -289,33 +290,60 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
       window.alert(text);
       return;
     }
-    const waiting = hi ? "रीसेट लिंक का अनुरोध भेज रहे हैं…" : "Sending password reset request…";
+
+    const waiting = hi ? "Supabase Auth से संपर्क कर रहे हैं…" : "Contacting Supabase Auth…";
     showResetMessage(waiting);
-    window.alert(waiting);
     setBusy(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
     try {
-      let timeoutId;
-      const { error } = await Promise.race([
-        supabase.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
-        }),
-        new Promise((_, reject) => {
-          timeoutId = window.setTimeout(() => reject(new Error(
-            hi
-              ? "15 सेकंड में Supabase से जवाब नहीं आया। इंटरनेट कनेक्शन या Supabase Auth की जाँच करनी होगी।"
-              : "Supabase did not respond within 15 seconds. The connection or Supabase Auth needs checking."
-          )), 15000);
-        })
-      ]).finally(() => window.clearTimeout(timeoutId));
-      if (error) throw error;
-      const success = hi ? "अनुरोध स्वीकार हुआ। अपने ईमेल के Inbox और Spam फ़ोल्डर देखें।" : "Reset request accepted. Check your email Inbox and Spam folder.";
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (!baseUrl || !publishableKey) {
+        throw new Error("Supabase configuration is missing in the deployed app.");
+      }
+      const redirectTo = window.location.origin + window.location.pathname + "?reset-password=true";
+      const response = await fetch(
+        baseUrl.replace(/\/$/, "") + "/auth/v1/recover?redirect_to=" + encodeURIComponent(redirectTo),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": publishableKey
+          },
+          body: JSON.stringify({ email: cleanEmail }),
+          signal: controller.signal
+        }
+      );
+      const responseText = await response.text();
+      let payload = {};
+      try { payload = responseText ? JSON.parse(responseText) : {}; } catch { payload = {}; }
+      if (!response.ok) {
+        const detail = payload.msg || payload.message || payload.error_description || payload.error || ("HTTP " + response.status);
+        throw new Error(detail);
+      }
+      const success = hi
+        ? "Supabase ने अनुरोध स्वीकार कर लिया। Inbox और Spam देखें; ईमेल आने में थोड़ा समय लग सकता है।"
+        : "Supabase accepted the request. Check Inbox and Spam; the email may take a little time to arrive.";
       showResetMessage(success);
       window.alert(success);
     } catch (error) {
-      const failure = error?.message || (hi ? "रीसेट लिंक का अनुरोध विफल हुआ। कृपया फिर कोशिश करें।" : "Password reset request failed. Please try again.");
+      let failure;
+      if (error?.name === "AbortError") {
+        failure = hi
+          ? "12 सेकंड में Supabase से जवाब नहीं आया। यह नेटवर्क या Supabase Auth कनेक्शन की समस्या है।"
+          : "Supabase did not respond within 12 seconds. This points to a network or Supabase Auth connection problem.";
+      } else if (error instanceof TypeError) {
+        failure = hi
+          ? "Supabase तक कनेक्शन नहीं बन पाया। इंटरनेट और Supabase URL की जाँच ज़रूरी है।"
+          : "Could not connect to Supabase. The internet connection or Supabase URL needs checking.";
+      } else {
+        failure = error?.message || (hi ? "रीसेट अनुरोध विफल हुआ।" : "Password reset request failed.");
+      }
       showResetMessage(failure);
       window.alert(failure);
     } finally {
+      window.clearTimeout(timeoutId);
       setBusy(false);
     }
   };
