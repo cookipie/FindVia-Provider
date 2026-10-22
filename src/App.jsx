@@ -288,7 +288,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     if (!cleanEmail) {
       const text = hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first.";
       showResetMessage(text);
-      window.alert(text);
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -335,7 +334,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         ? "Supabase ने अनुरोध स्वीकार कर लिया। Inbox और Spam देखें; ईमेल आने में थोड़ा समय लग सकता है।"
         : "Supabase accepted the request. Check Inbox and Spam; the email may take a little time to arrive.";
       showResetMessage(success);
-      window.alert(success);
     } catch (error) {
       let failure;
       if (error?.name === "AbortError") {
@@ -350,7 +348,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         failure = error?.message || (hi ? "रीसेट अनुरोध विफल हुआ।" : "Password reset request failed.");
       }
       showResetMessage(failure);
-      window.alert(failure);
     } finally {
       window.clearTimeout(timeoutId);
       setBusy(false);
