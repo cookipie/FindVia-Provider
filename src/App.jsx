@@ -454,7 +454,7 @@ function App() {
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
           {page === "verification" && <VerificationPage notify={notify} go={go} language={language} userId={authSession.user.id} />}
           {page === "notifications" && <NotificationsPage go={go} language={language} notifications={notifications} loading={notificationsLoading} error={notificationsError} onRead={markNotificationRead} onRefresh={() => setNotificationsRefresh(value => value + 1)} />}
-          {page === "support" && <SupportPage notify={notify} language={language} />}
+          {page === "support" && <SupportPage notify={notify} language={language} userId={authSession.user.id} />}
         </div>
 
         <footer className="app-footer"><span>© 2026 FindVia</span><span><ShieldCheck size={14} /> Your work. Your growth.</span><span>Preview build · No real transactions</span></footer>
@@ -859,11 +859,50 @@ function NotificationsPage({ go, language, notifications, loading, error, onRead
   </section>;
 }
 
-function SupportPage({ notify, language }) {
+function SupportPage({ notify, language, userId }) {
   const hi = language === "Hindi";
   const [topic, setTopic] = useState("Job or offer");
   const [message, setMessage] = useState("");
-  return <section className="page-section"><div className="page-heading"><div><span className="eyebrow">WE'RE HERE TO HELP</span><h1>{hi ? "मदद और सहायता" : "Help & support"}</h1><p>{hi ? "जवाब पाएँ या सहायता अनुरोध तैयार करें।" : "Find answers or prepare a support request."}</p></div><div className="heading-icon"><CircleHelp size={24} /></div></div><div className="content-grid support-grid"><div className="panel support-faq"><h2>{hi ? "आम सवाल" : "Common questions"}</h2><details><summary>When can I see customer contact details?</summary><p>{hi ? "ग्राहक द्वारा आपका ऑफ़र चुनने और काम मैच होने के बाद ही।" : "Only after the customer selects your offer and the job is matched."}</p></details><details><summary>When is commission deducted?</summary><p>{hi ? "ग्राहक का completion OTP सुरक्षित सर्वर द्वारा सत्यापित होने के बाद।" : "After the customer completion OTP is verified by the secure server."}</p></details><details><summary>Can I recharge the wallet in preview mode?</summary><p>{hi ? "नहीं। डेमो अनुरोध से पैसे नहीं चलते और प्रबंधन तक अनुरोध नहीं पहुँचता।" : "No. Preview requests do not move money or reach management."}</p></details></div><div className="panel support-form"><h2>{hi ? "सहायता अनुरोध" : "Support request"}</h2><p>{hi ? "यह स्थानीय पूर्वावलोकन है; संदेश नहीं भेजा जाएगा।" : "This form is a local preview and will not send a message."}</p><label htmlFor="support-topic">{hi ? "किस विषय में सहायता चाहिए?" : "What do you need help with?"}</label><select className="form-control" id="support-topic" value={topic} onChange={e => setTopic(e.target.value)}><option>Job or offer</option><option>Wallet or commission</option><option>Profile verification</option><option>Account access</option><option>Other</option></select><label htmlFor="support-message">{hi ? "समस्या बताएँ" : "Describe the issue"}</label><textarea className="form-control" id="support-message" rows="4" maxLength="600" value={message} onChange={e => setMessage(e.target.value)} placeholder="Tell us what happened…" /><button className="button button-primary" onClick={() => notify(message.trim() ? (hi ? "डेमो: सहायता अनुरोध अभी नहीं भेजा गया।" : "Preview only: support request is not sent yet.") : (hi ? "पहले समस्या बताएँ।" : "Please describe your issue first."))}>{hi ? "अनुरोध तैयार करें" : "Prepare request"} <ArrowRight size={16} /></button></div></div></section>;
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const loadRequests = async () => {
+    setLoading(true);
+    setError("");
+    const { data, error: queryError } = await supabase.from("provider_support_requests").select("id, topic, message, status, management_reply, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(20);
+    if (queryError) setError(queryError.message || "Could not load support requests.");
+    else setRequests(data || []);
+    setLoading(false);
+  };
+  useEffect(() => { if (userId) void loadRequests(); }, [userId]);
+  const submitSupportRequest = async event => {
+    event.preventDefault();
+    const cleanMessage = message.trim();
+    if (cleanMessage.length < 5) { notify(hi ? "कृपया समस्या थोड़ी विस्तार से लिखें।" : "Please describe the issue in at least 5 characters."); return; }
+    setSending(true);
+    try {
+      const { error: insertError } = await supabase.from("provider_support_requests").insert({ provider_id: userId, topic, message: cleanMessage, status: "open" });
+      if (insertError) throw insertError;
+      setMessage("");
+      await loadRequests();
+      notify(hi ? "सहायता अनुरोध भेज दिया गया।" : "Your support request was submitted.");
+    } catch (submitError) {
+      notify(submitError?.message || (hi ? "अनुरोध भेजा नहीं जा सका।" : "Could not submit the request."));
+    } finally {
+      setSending(false);
+    }
+  };
+  const statusLabel = status => ({ open: hi ? "खुला" : "Open", in_progress: hi ? "जारी" : "In progress", resolved: hi ? "हल हुआ" : "Resolved", closed: hi ? "बंद" : "Closed" })[status] || status;
+  return <section className="page-section">
+    <div className="page-heading"><div><span className="eyebrow">{hi ? "हम सहायता के लिए हैं" : "WE'RE HERE TO HELP"}</span><h1>{hi ? "मदद और सहायता" : "Help & support"}</h1><p>{hi ? "सहायता अनुरोध भेजें और उसका जवाब देखें।" : "Submit a support request and track the response."}</p></div><div className="heading-icon"><CircleHelp size={24} /></div></div>
+    <div className="content-grid support-grid"><div className="panel support-faq"><h2>{hi ? "आम सवाल" : "Common questions"}</h2><details><summary>{hi ? "ग्राहक की जानकारी कब दिखेगी?" : "When can I see customer contact details?"}</summary><p>{hi ? "ग्राहक द्वारा ऑफ़र चुनने और सुरक्षित मैच होने के बाद।" : "After the customer selects your offer and a secure match is recorded."}</p></details><details><summary>{hi ? "कमीशन कब कटेगा?" : "When is commission deducted?"}</summary><p>{hi ? "काम पूरा होने का OTP सर्वर द्वारा सत्यापित होने के बाद।" : "After the completion OTP is verified by the server."}</p></details><details><summary>{hi ? "रिचार्ज अनुरोध का क्या होगा?" : "What happens to a recharge request?"}</summary><p>{hi ? "प्रबंधन UTR जाँचेगा; स्वीकृत होने पर सर्वर वॉलेट लेजर अपडेट करेगा।" : "Management checks the UTR; the server updates the wallet ledger only after approval."}</p></details></div>
+      <div className="panel support-form"><h2>{hi ? "सहायता अनुरोध" : "Support request"}</h2><p>{hi ? "आपका संदेश सुरक्षित रूप से प्रबंधन तक पहुँचेगा।" : "Your message will be stored securely for management."}</p><form onSubmit={submitSupportRequest}><label htmlFor="support-topic">{hi ? "विषय" : "Topic"}</label><select className="form-control" id="support-topic" value={topic} onChange={event => setTopic(event.target.value)}><option>Job or offer</option><option>Wallet or commission</option><option>Profile verification</option><option>Account access</option><option>Other</option></select><label htmlFor="support-message">{hi ? "समस्या बताएँ" : "Describe the issue"}</label><textarea className="form-control" id="support-message" rows="4" maxLength="1000" minLength="5" required value={message} onChange={event => setMessage(event.target.value)} placeholder={hi ? "क्या हुआ, बताएँ…" : "Tell us what happened…"} /><button className="button button-primary" type="submit" disabled={sending}>{sending ? (hi ? "भेज रहे हैं…" : "Submitting…") : (hi ? "अनुरोध भेजें" : "Submit request")} <ArrowRight size={16} /></button></form></div></div>
+    <div className="panel transaction-panel"><div className="section-heading"><div><h2>{hi ? "आपके सहायता अनुरोध" : "Your support requests"}</h2><p>{hi ? "प्रबंधन के जवाब यहाँ दिखाई देंगे।" : "Management replies appear here."}</p></div><button className="button button-secondary" onClick={() => void loadRequests()} disabled={loading}>{hi ? "रीफ़्रेश" : "Refresh"}</button></div>
+      {error && <div className="preview-notice"><CircleHelp size={16} /><span>{error}</span></div>}
+      {loading ? <div className="empty-state compact-empty"><Activity size={20} /> {hi ? "अनुरोध लोड हो रहे हैं…" : "Loading requests…"}</div> : requests.length ? requests.map(item => <div className="transaction-row" key={item.id}><div className="transaction-icon"><MessageCircle size={17} /></div><div className="transaction-copy"><strong>{item.topic}</strong><span>{item.message}</span>{item.management_reply && <small>{hi ? "प्रबंधन का जवाब: " : "Management reply: "}{item.management_reply}</small>}</div><StatusPill tone={item.status === "resolved" || item.status === "closed" ? "success" : "warning"}>{statusLabel(item.status)}</StatusPill></div>) : <div className="empty-state compact-empty"><strong>{hi ? "अभी कोई अनुरोध नहीं" : "No support requests yet"}</strong></div>}
+    </div>
+  </section>;
 }
 
 export default App;
