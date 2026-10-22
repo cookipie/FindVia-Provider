@@ -109,3 +109,42 @@ drop trigger if exists notification_update_guard on public.notifications;
 create trigger notification_update_guard
 before update on public.notifications
 for each row execute function public.guard_notification_update();
+
+-- Prevent users from reactivating or closing accounts by editing their own
+-- profile row directly.
+create or replace function public.guard_profile_account_status()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if not public.has_role('management')
+    and new.account_status is distinct from old.account_status then
+    raise exception 'Only management can change account status';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists profile_account_status_guard on public.profiles;
+create trigger profile_account_status_guard
+before update on public.profiles
+for each row execute function public.guard_profile_account_status();
+
+-- Explicitly require provider role for provider-only profile/service mutations.
+drop policy if exists "provider creates own profile" on public.provider_profiles;
+create policy "provider creates own profile" on public.provider_profiles
+for insert to authenticated
+with check (user_id = (select auth.uid()) and public.has_role('provider'));
+
+drop policy if exists "provider updates own non-verification fields" on public.provider_profiles;
+create policy "provider updates own non-verification fields" on public.provider_profiles
+for update to authenticated
+using (user_id = (select auth.uid()) and public.has_role('provider'))
+with check (user_id = (select auth.uid()) and public.has_role('provider'));
+
+drop policy if exists "provider manages own services" on public.provider_services;
+create policy "provider manages own services" on public.provider_services
+for all to authenticated
+using (provider_id = (select auth.uid()) and public.has_role('provider'))
+with check (provider_id = (select auth.uid()) and public.has_role('provider'));
