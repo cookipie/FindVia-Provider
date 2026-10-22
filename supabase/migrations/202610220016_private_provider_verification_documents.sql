@@ -110,14 +110,8 @@ on storage.objects for select to authenticated
 using (
   bucket_id = 'provider-verification'
   and (
-    public.has_role('management')
-    or (
-      (storage.foldername(name))[1] = (select auth.uid())::text
-      and not exists (
-        select 1 from public.provider_verification_documents d
-        where d.storage_path = name
-      )
-    )
+    (storage.foldername(name))[1] = (select auth.uid())::text
+    or public.has_role('management')
   )
 );
 
@@ -127,8 +121,14 @@ on storage.objects for delete to authenticated
 using (
   bucket_id = 'provider-verification'
   and (
-    (storage.foldername(name))[1] = (select auth.uid())::text
-    or public.has_role('management')
+    public.has_role('management')
+    or (
+      (storage.foldername(name))[1] = (select auth.uid())::text
+      and not exists (
+        select 1 from public.provider_verification_documents d
+        where d.storage_path = name
+      )
+    )
   )
 );
 
