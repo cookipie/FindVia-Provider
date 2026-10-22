@@ -28,13 +28,12 @@ The second migration hardens client-side permissions, supports multiple provider
 ## Build
 Run `npm run build`; production files are written to `dist/`. GitHub Actions currently checks the frontend build and deployment; it does not run SQL integration tests.
 
-## Planned milestones
-1. Premium mobile-first interface and accessible navigation.
-2. Supabase Auth and provider profile.
-3. Service categories, service areas and verification documents.
-4. Available jobs, offers, selection and active job lifecycle.
-5. Secure real-money wallet, recharge requests and commission ledger.
-6. Server-verified completion OTP and notifications.
-7. Automated build checks, Android packaging, signing and Play Store preparation.
+## Remaining milestones
+1. Apply and verify the provider hardening migration in the shared Supabase project; configure service categories and service areas.
+2. Implement customer offer selection/matching and securely reveal customer contact only after matching.
+3. Build active-job start/finish flow and server-verified completion OTP.
+4. Add server-side commission calculation/posting and management review actions.
+5. Build the Customer and Management apps against this same Supabase schema.
+6. Add end-to-end database/RLS/storage tests, then package/sign the Android app and prepare Play Store publishing.
 
 Financial actions must be implemented server-side and tested against the new database before production use.
