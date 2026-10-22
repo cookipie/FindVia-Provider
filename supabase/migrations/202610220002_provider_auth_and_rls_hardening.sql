@@ -200,8 +200,15 @@ with check (
       and p.verification_status = 'approved'
   )
   and exists (
-    select 1 from public.jobs j
-    where j.id = job_id and j.status = 'open'
+    select 1
+    from public.jobs j
+    join public.provider_profiles p on p.user_id = (select auth.uid())
+    join public.provider_services ps
+      on ps.provider_id = p.user_id and ps.category_id = j.category_id
+    where j.id = job_id
+      and j.status = 'open'
+      and p.is_available
+      and p.service_area_id = j.service_area_id
   )
 );
 
@@ -235,3 +242,36 @@ drop trigger if exists provider_verification_fields_guard on public.provider_pro
 create trigger provider_verification_fields_guard
 before insert or update on public.provider_profiles
 for each row execute function public.guard_provider_verification_fields();
+
+-- Validate recharge data at the database boundary, not only in the UI.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'recharge_amount_range_check'
+      and conrelid = 'public.recharge_requests'::regclass
+  ) then
+    alter table public.recharge_requests
+      add constraint recharge_amount_range_check check (amount >= 100 and amount <= 50000);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'recharge_utr_length_check'
+      and conrelid = 'public.recharge_requests'::regclass
+  ) then
+    alter table public.recharge_requests
+      add constraint recharge_utr_length_check check (length(btrim(utr)) between 8 and 22);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'commission_effective_window_check'
+      and conrelid = 'public.commission_rules'::regclass
+  ) then
+    alter table public.commission_rules
+      add constraint commission_effective_window_check
+      check (effective_until is null or effective_until > effective_from);
+  end if;
+end
+$$;
