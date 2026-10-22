@@ -1,39 +1,40 @@
 # FindVia Provider
 
-A mobile-first, accessible provider app for the FindVia service marketplace.
+A mobile-first provider app for the FindVia service marketplace. The current public deployment is a web preview hosted on GitHub Pages; it is not yet a signed Android release.
 
-## Current status
-- Supabase Auth, profile editing, multi-area/service selection, privacy-safe job discovery, offer submission/history, private verification uploads, wallet/ledger reads, UTR recharge requests, live notifications and support requests are wired in the frontend.
-- These flows require the shared core migration and provider hardening migration to be successfully applied in Supabase. Initial categories and Jaipur service areas are seeded by migrations 003 and 004; migration 005 safely deactivates the accidentally proposed legacy generic areas and ensures Jaipur localities are active. Management will later control the full list; providers must be approved and available to receive jobs.
-- Secure customer offer selection/matching and matched-only contact RPCs are defined in migration 006. Migration 007 adds a provider-only RPC for matched work and matched customer contact. Active-job lifecycle, completion OTP, server-side commission posting, management review screens, and integration tests still need implementation.
-- A successful frontend build does not prove that migrations, storage policies, SMTP delivery, or database policies are configured correctly.
-- Never store Supabase service-role keys in this app. Only the public anon/publishable key belongs in the client, protected by Row Level Security and server-side functions.
+## Implemented in the repository
+- Supabase authentication and profile/service-area editing.
+- Job discovery, offer submission/history, secure matching and matched-only contact RPCs.
+- Matched-work view, job start and server-verified completion OTP flow.
+- Private provider-verification uploads and document status display.
+- Wallet balance, ledger, recharge requests, commission charges and outstanding-commission display.
+- Server-side commission posting on completed jobs and management-only recharge approval RPC.
+- Notifications, support requests, Hindi/English toggle, responsive layouts and contextual Back navigation.
+- GitHub Actions builds and deploys the Vite web preview to GitHub Pages.
+
+## Important limits
+- A successful frontend deployment proves the app builds; it does not prove every database/RLS/storage flow works against the live Supabase project.
+- Migration 011 has been reported successful by the project owner. Still required: end-to-end tests with separate customer/provider/management accounts, including matching, OTP attempts/expiry, wallet settlement, recharge approval, RLS boundaries and document privacy.
+- The customer-side OTP generation and offer acceptance screens belong to the future Customer App. A full Management App UI has not yet been built; current management capabilities are database/RPC policies only.
+- No Android APK/AAB has been built or signed yet, and Play Store publication has not happened.
+- Never store Supabase service-role keys in this app. Only the public publishable/anon key belongs in the client, protected by RLS and server-side functions.
 
 ## Deployment
-GitHub Pages must use **GitHub Actions** as its publishing source. The workflow builds the Vite app and deploys the generated `dist/` directory; do not publish the repository root directly.
+GitHub Pages must use **GitHub Actions** as its publishing source. The workflow builds the Vite app and deploys `dist/`.
 
 ## Local development
 1. Install Node.js 20 or newer.
 2. Run `npm install`.
-3. Copy `.env.example` to `.env` and fill in the new Supabase project URL and public anon/publishable key when ready.
+3. Copy `.env.example` to `.env` and set the Supabase project URL and public publishable key.
 4. Run `npm run dev`.
 
-## Shared Supabase schema
-Run the SQL files in `supabase/migrations` in filename order in the SQL Editor:
-1. `202610210001_shared_core.sql`
-2. `202610220002_provider_auth_and_rls_hardening.sql`
+## Shared Supabase migrations
+Apply migration files in `supabase/migrations` in filename order, using the same shared Supabase project for all three future apps. Adding a SQL file to GitHub does **not** execute it in Supabase. Keep settings such as commission rules and service categories centrally configurable rather than hardcoding them in each app.
 
-The second migration hardens client-side permissions, supports multiple provider service areas, creates private verification-document storage, and adds the provider profile-save and offer-discovery RPCs. Adding a migration to GitHub does **not** execute it in Supabase. Verify both SQL scripts complete successfully before testing signup or database-backed flows.
+## Remaining Provider App milestones
+1. Finish functional UI/security audit and repair issues found.
+2. Verify end-to-end behavior against Supabase using distinct test accounts and realistic failure cases.
+3. Confirm responsive behavior, accessibility, language coverage and Back navigation on mobile/tablet.
+4. Package and sign the Android app, then prepare the Play Store listing and release checks.
 
-## Build
-Run `npm run build`; production files are written to `dist/`. GitHub Actions currently checks the frontend build and deployment; it does not run SQL integration tests.
-
-## Remaining milestones
-1. Apply and verify the provider hardening migration in the shared Supabase project; run migrations 003–007 for service categories, Jaipur service areas, secure offer matching/contact RPCs, and provider matched-work access.
-2. Implement customer offer selection/matching and securely reveal customer contact only after matching.
-3. Build active-job start/finish flow and server-verified completion OTP.
-4. Add server-side commission calculation/posting and management review actions.
-5. Build the Customer and Management apps against this same Supabase schema.
-6. Add end-to-end database/RLS/storage tests, then package/sign the Android app and prepare Play Store publishing.
-
-Financial actions must be implemented server-side and tested against the new database before production use.
+After the Provider App is finished, build the Customer App and Management App against this same shared backend.
