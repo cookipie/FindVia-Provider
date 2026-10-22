@@ -200,25 +200,34 @@ function App() {
   const updateAvailability = async nextValue => {
     const userId = authSession?.user?.id;
     if (!userId) return;
-    const { data, error } = await supabase.from("provider_profiles").update({ is_available: nextValue }).eq("user_id", userId).select("user_id").maybeSingle();
-    if (error || !data) { notify(error?.message || "Provider profile is not ready yet. Complete account setup first."); return; }
-    setProviderAvailable(nextValue);
+    try {
+      const { data, error } = await supabase.from("provider_profiles").update({ is_available: nextValue }).eq("user_id", userId).select("user_id").maybeSingle();
+      if (error || !data) { notify(error?.message || "Provider profile is not ready yet. Complete account setup first."); return; }
+      setProviderAvailable(nextValue);
+    } catch (error) {
+      notify(error?.message || "Could not update availability. Check your connection.");
+    }
   };
   const submitOffer = async (event) => {
     event.preventDefault();
     if (!offerPrice || Number(offerPrice) <= 0) { notify("Enter a valid offer amount."); return; }
     if (!authSession?.user?.id || !offerJob?.id) { notify("Please sign in again before sending an offer."); return; }
-    const { error } = await supabase.from("job_offers").insert({
-      job_id: offerJob.id,
-      provider_id: authSession.user.id,
-      offered_price: Number(offerPrice),
-      message: offerNote.trim() || null,
-      status: "pending"
-    });
-    if (error) {
-      if (error.code === "23505") notify("You have already sent an offer for this job.");
-      else if (error.code === "42501") notify("Your provider profile must be verified and available before sending offers.");
-      else notify(error.message || "Offer could not be sent.");
+    try {
+      const { error } = await supabase.from("job_offers").insert({
+        job_id: offerJob.id,
+        provider_id: authSession.user.id,
+        offered_price: Number(offerPrice),
+        message: offerNote.trim() || null,
+        status: "pending"
+      });
+      if (error) {
+        if (error.code === "23505") notify("You have already sent an offer for this job.");
+        else if (error.code === "42501") notify("Your provider profile must be verified and available before sending offers.");
+        else notify(error.message || "Offer could not be sent.");
+        return;
+      }
+    } catch (error) {
+      notify(error?.message || "Offer could not be sent. Check your connection.");
       return;
     }
     setSubmittedOffers(current => [{ jobId: offerJob.id, title: offerJob.title, price: Number(offerPrice), note: offerNote, status: "pending" }, ...current.filter(item => item.jobId !== offerJob.id)]);
