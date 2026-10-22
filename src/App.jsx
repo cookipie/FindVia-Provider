@@ -318,13 +318,14 @@ function JobDetails({ job, onBack, onOffer }) {
 function MyWorkPage({ offers, go, language }) {
   const hi = language === "Hindi";
   const [tab, setTab] = useState("Offers");
+  const matchedOffers = offers.filter(offer => offer.status === "accepted");
   const tabs = [
-    { label: "Offers", count: offers.length },
-    { label: "Matched", count: 0 },
+    { label: "Offers", count: offers.filter(offer => offer.status !== "accepted").length },
+    { label: "Matched", count: matchedOffers.length },
     { label: "Active", count: 0 },
     { label: "Completed", count: 0 }
   ];
-  const visibleOffers = offers.filter(offer => tab === "Offers" || (tab === "Matched" && offer.status === "accepted"));
+  const visibleOffers = tab === "Matched" ? matchedOffers : offers.filter(offer => offer.status !== "accepted");
   return <section className="page-section">
     <div className="page-heading">
       <div><span className="eyebrow">{hi ? "आपके काम की स्थिति" : "YOUR WORK STATUS"}</span><h1>{hi ? "मेरे काम" : "My work"}</h1><p>{hi ? "अपने भेजे गए ऑफ़र और काम की स्थिति देखें।" : "Track your offers and job progress."}</p></div>
@@ -334,7 +335,7 @@ function MyWorkPage({ offers, go, language }) {
     <div className="tabs work-tabs" role="tablist" aria-label="Work status">
       {tabs.map(item => <button key={item.label} role="tab" aria-selected={tab === item.label} className={tab === item.label ? "selected" : ""} onClick={() => setTab(item.label)}>{hi ? ({Offers:"ऑफ़र",Matched:"मैच हुए",Active:"जारी",Completed:"पूरे"}[item.label]) : item.label}<span className="tab-count">{item.count}</span></button>)}
     </div>
-    {tab === "Offers" && visibleOffers.length > 0 ? <div className="job-list">{visibleOffers.map(offer => <article className="job-card work-offer-card" key={offer.jobId}>
+    {(tab === "Offers" || tab === "Matched") && visibleOffers.length > 0 ? <div className="job-list">{visibleOffers.map(offer => <article className="job-card work-offer-card" key={offer.jobId}>
       <div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title || (hi ? "काम का ऑफ़र" : "Job offer")}</h3><span className="job-id">{String(offer.jobId || "").slice(0,8).toUpperCase()}</span></div><p className="job-category">{[offer.area, offer.city].filter(Boolean).join(", ") || (hi ? "क्षेत्र की जानकारी उपलब्ध नहीं" : "Area details unavailable")}</p></div><StatusPill tone={offer.status === "accepted" ? "success" : offer.status === "rejected" || offer.status === "withdrawn" ? "neutral" : "warning"}>{offer.status || "pending"}</StatusPill></div>
       <div className="work-offer-bottom"><div><span className="eyebrow">{hi ? "आपका ऑफ़र" : "YOUR OFFER"}</span><strong className="work-offer-price">₹{Number(offer.price).toLocaleString("en-IN")}</strong></div><div className="work-offer-message">{offer.note || (hi ? "कोई संदेश नहीं जोड़ा" : "No message added")}</div></div>
     </article>)}</div> : <div className="empty-state work-empty"><div className="empty-icon"><ClipboardList size={23} /></div><strong>{tab === "Offers" ? (hi ? "अभी कोई ऑफ़र नहीं" : "No offers sent yet") : tab === "Matched" ? (hi ? "अभी कोई मैच नहीं" : "No matched jobs yet") : tab === "Active" ? (hi ? "अभी कोई सक्रिय काम नहीं" : "No active jobs yet") : (hi ? "अभी कोई पूरा काम नहीं" : "No completed jobs yet")}</strong><p>{tab === "Offers" ? (hi ? "उपलब्ध काम देखें और अपनी कीमत भेजें।" : "Browse available jobs and send your price.") : (hi ? "ग्राहक द्वारा ऑफ़र चुनने और सर्वर पर मैच दर्ज होने के बाद काम यहाँ दिखेगा।" : "Work appears here after the customer selects an offer and the server records the match.")}</p>{tab === "Offers" && <button className="button button-primary" onClick={() => go("jobs")}>{hi ? "काम खोजें" : "Explore jobs"} <ArrowRight size={16} /></button>}</div>}
