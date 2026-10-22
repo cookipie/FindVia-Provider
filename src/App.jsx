@@ -120,6 +120,9 @@ function App() {
   const isHindi = language === "Hindi";
   const unreadNotificationCount = notifications.filter(item => !item.read_at).length;
   const [submittedOffers, setSubmittedOffers] = useState([]);
+  const [matchedJobs, setMatchedJobs] = useState([]);
+  const [matchedJobsLoading, setMatchedJobsLoading] = useState(false);
+  const [matchedJobsError, setMatchedJobsError] = useState("");
   const [walletRequests, setWalletRequests] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLedger, setWalletLedger] = useState([]);
@@ -200,9 +203,11 @@ function App() {
       setJobsLoading(true);
       setJobsError("");
       try {
-        const [jobsResult, offersResult, profileResult] = await Promise.all([
+        setMatchedJobsLoading(true);
+        const [jobsResult, offersResult, matchesResult, profileResult] = await Promise.all([
           supabase.rpc("provider_available_jobs"),
           supabase.rpc("provider_my_offers"),
+          supabase.rpc("provider_my_matches"),
           supabase.from("provider_profiles").select("is_available").eq("user_id", userId).maybeSingle()
         ]);
         if (!active) return;
@@ -225,6 +230,13 @@ function App() {
             area: offer.area_name || ""
           })));
         }
+        if (matchesResult.error) {
+          setMatchedJobs([]);
+          setMatchedJobsError(matchesResult.error.message || "Could not load matched work.");
+        } else {
+          setMatchedJobs(matchesResult.data || []);
+          setMatchedJobsError("");
+        }
         if (!profileResult.error && profileResult.data) {
           setProviderAvailable(Boolean(profileResult.data.is_available));
         }
@@ -232,10 +244,12 @@ function App() {
         if (active) {
           setJobs([]);
           setSubmittedOffers([]);
+          setMatchedJobs([]);
+          setMatchedJobsError(error?.message || "Could not connect to matched work.");
           setJobsError(error?.message || "Could not connect to the provider service.");
         }
       } finally {
-        if (active) setJobsLoading(false);
+        if (active) { setJobsLoading(false); setMatchedJobsLoading(false); }
       }
     };
     void loadProviderData();
@@ -449,7 +463,7 @@ function App() {
           {jobTab === "My offers" ? offerResults : jobsResults}</section>}
 
           {selectedJob && <JobDetails job={selectedJob} onBack={() => setSelectedJob(null)} onOffer={setOfferJob} language={language} />}
-          {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} go={go} language={language} notify={notify} />}
+          {page === "work" && !selectedJob && <MyWorkPage offers={submittedOffers} matches={matchedJobs} loading={matchedJobsLoading} error={matchedJobsError} go={go} language={language} notify={notify} />}
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} loading={walletLoading} error={walletError} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
@@ -509,30 +523,49 @@ function JobDetails({ job, onBack, onOffer, language }) {
   </section>;
 }
 
-function MyWorkPage({ offers, go, language }) {
+function MyWorkPage({ offers, matches, loading, error, go, language }) {
   const hi = language === "Hindi";
   const [tab, setTab] = useState("Offers");
-  const matchedOffers = offers.filter(offer => offer.status === "accepted");
+  const activeMatches = matches.filter(job => job.job_status === "in_progress");
+  const completedMatches = matches.filter(job => job.job_status === "completed");
   const tabs = [
     { label: "Offers", count: offers.filter(offer => offer.status !== "accepted").length },
-    { label: "Matched", count: matchedOffers.length },
-    { label: "Active", count: 0 },
-    { label: "Completed", count: 0 }
+    { label: "Matched", count: matches.filter(job => job.job_status === "matched").length },
+    { label: "Active", count: activeMatches.length },
+    { label: "Completed", count: completedMatches.length }
   ];
-  const visibleOffers = tab === "Matched" ? matchedOffers : offers.filter(offer => offer.status !== "accepted");
+  const shownMatches = tab === "Matched"
+    ? matches.filter(job => job.job_status === "matched")
+    : tab === "Active" ? activeMatches : completedMatches;
+  const renderMatch = job => <article className="job-card work-offer-card" key={job.match_id}>
+    <div className="job-card-top">
+      <div className="category-icon mint"><BriefcaseBusiness size={21} /></div>
+      <div className="job-main">
+        <div className="job-title-row"><h3>{job.job_title || (hi ? "मैच हुआ काम" : "Matched job")}</h3><span className="job-id">{String(job.job_id || "").slice(0,8).toUpperCase()}</span></div>
+        <p className="job-category">{hi ? (job.category_name_hi || job.category_name_en) : job.category_name_en}</p>
+        <p className="job-category">{[job.area_name, job.city].filter(Boolean).join(", ")}</p>
+      </div>
+      <StatusPill tone={job.job_status === "completed" ? "success" : job.job_status === "in_progress" ? "warning" : "neutral"}>{job.job_status}</StatusPill>
+    </div>
+    <div className="work-offer-bottom">
+      <div><span className="eyebrow">{hi ? "तय कीमत" : "AGREED PRICE"}</span><strong className="work-offer-price">₹{Number(job.agreed_price || 0).toLocaleString("en-IN")}</strong></div>
+      <div className="work-offer-message">{hi ? "ग्राहक" : "Customer"}: {job.customer_name || (hi ? "नाम उपलब्ध नहीं" : "Name unavailable")}<br />{hi ? "फोन" : "Phone"}: {job.customer_phone || (hi ? "फोन उपलब्ध नहीं" : "Phone unavailable")}<br />{hi ? "पता" : "Address"}: {job.job_address || (hi ? "पता उपलब्ध नहीं" : "Address unavailable")}</div>
+    </div>
+  </article>;
+  const offerList = offers.filter(offer => offer.status !== "accepted");
   return <section className="page-section">
     <div className="page-heading">
-      <div><span className="eyebrow">{hi ? "आपके काम की स्थिति" : "YOUR WORK STATUS"}</span><h1>{hi ? "मेरे काम" : "My work"}</h1><p>{hi ? "अपने भेजे गए ऑफ़र और काम की स्थिति देखें।" : "Track your offers and job progress."}</p></div>
+      <div><span className="eyebrow">{hi ? "आपके काम की स्थिति" : "YOUR WORK STATUS"}</span><h1>{hi ? "मेरे काम" : "My work"}</h1><p>{hi ? "ऑफ़र, मैच और ग्राहक से जुड़ी जानकारी देखें।" : "Track your offers, matched jobs and customer details."}</p></div>
       <div className="heading-icon"><ClipboardList size={24} /></div>
     </div>
-    <div className="preview-notice work-notice"><ShieldCheck size={17} /><span>{hi ? "ऑफ़र आपके खाते से लोड होते हैं। मैच, सक्रिय काम और OTP पूरा करने का प्रवाह अभी सर्वर कार्यों से जोड़ा जाना बाकी है।" : "Offers load from your account. Matching, active work and OTP completion still need their secure server workflows."}</span></div>
+    <div className="preview-notice work-notice"><ShieldCheck size={17} /><span>{hi ? "ग्राहक का संपर्क केवल चुने गए मैच में दिखता है।" : "Customer contact details are shown only for jobs matched to your account."}</span></div>
     <div className="tabs work-tabs" role="tablist" aria-label="Work status">
       {tabs.map(item => <button key={item.label} role="tab" aria-selected={tab === item.label} className={tab === item.label ? "selected" : ""} onClick={() => setTab(item.label)}>{hi ? ({Offers:"ऑफ़र",Matched:"मैच हुए",Active:"जारी",Completed:"पूरे"}[item.label]) : item.label}<span className="tab-count">{item.count}</span></button>)}
     </div>
-    {(tab === "Offers" || tab === "Matched") && visibleOffers.length > 0 ? <div className="job-list">{visibleOffers.map(offer => <article className="job-card work-offer-card" key={offer.jobId}>
-      <div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title || (hi ? "काम का ऑफ़र" : "Job offer")}</h3><span className="job-id">{String(offer.jobId || "").slice(0,8).toUpperCase()}</span></div><p className="job-category">{[offer.area, offer.city].filter(Boolean).join(", ") || (hi ? "क्षेत्र की जानकारी उपलब्ध नहीं" : "Area details unavailable")}</p></div><StatusPill tone={offer.status === "accepted" ? "success" : offer.status === "rejected" || offer.status === "withdrawn" ? "neutral" : "warning"}>{offer.status || "pending"}</StatusPill></div>
+    {tab === "Offers" ? (offerList.length > 0 ? <div className="job-list">{offerList.map(offer => <article className="job-card work-offer-card" key={offer.jobId}>
+      <div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title || (hi ? "काम का ऑफ़र" : "Job offer")}</h3><span className="job-id">{String(offer.jobId || "").slice(0,8).toUpperCase()}</span></div><p className="job-category">{[offer.area, offer.city].filter(Boolean).join(", ") || (hi ? "क्षेत्र की जानकारी उपलब्ध नहीं" : "Area details unavailable")}</p></div><StatusPill tone={offer.status === "rejected" || offer.status === "withdrawn" ? "neutral" : "warning"}>{offer.status || "pending"}</StatusPill></div>
       <div className="work-offer-bottom"><div><span className="eyebrow">{hi ? "आपका ऑफ़र" : "YOUR OFFER"}</span><strong className="work-offer-price">₹{Number(offer.price).toLocaleString("en-IN")}</strong></div><div className="work-offer-message">{offer.note || (hi ? "कोई संदेश नहीं जोड़ा" : "No message added")}</div></div>
-    </article>)}</div> : <div className="empty-state work-empty"><div className="empty-icon"><ClipboardList size={23} /></div><strong>{tab === "Offers" ? (hi ? "अभी कोई ऑफ़र नहीं" : "No offers sent yet") : tab === "Matched" ? (hi ? "अभी कोई मैच नहीं" : "No matched jobs yet") : tab === "Active" ? (hi ? "अभी कोई सक्रिय काम नहीं" : "No active jobs yet") : (hi ? "अभी कोई पूरा काम नहीं" : "No completed jobs yet")}</strong><p>{tab === "Offers" ? (hi ? "उपलब्ध काम देखें और अपनी कीमत भेजें।" : "Browse available jobs and send your price.") : (hi ? "ग्राहक द्वारा ऑफ़र चुनने और सर्वर पर मैच दर्ज होने के बाद काम यहाँ दिखेगा।" : "Work appears here after the customer selects an offer and the server records the match.")}</p>{tab === "Offers" && <button className="button button-primary" onClick={() => go("jobs")}>{hi ? "काम खोजें" : "Explore jobs"} <ArrowRight size={16} /></button>}</div>}
+    </article>)}</div> : <div className="empty-state work-empty"><div className="empty-icon"><ClipboardList size={23} /></div><strong>{hi ? "अभी कोई ऑफ़र नहीं" : "No offers sent yet"}</strong><p>{hi ? "उपलब्ध काम देखें और अपनी कीमत भेजें।" : "Browse available jobs and send your price."}</p><button className="button button-primary" onClick={() => go("jobs")}>{hi ? "काम खोजें" : "Explore jobs"} <ArrowRight size={16} /></button></div>) : loading ? <div className="empty-state"><Activity size={25} /><strong>{hi ? "मैच हुए काम लोड हो रहे हैं…" : "Loading matched work…"}</strong></div> : error ? <div className="empty-state"><CircleHelp size={25} /><strong>{hi ? "काम लोड नहीं हो सके" : "Could not load matched work"}</strong><p>{error}</p><button className="button button-secondary" onClick={() => window.location.reload()}>{hi ? "फिर कोशिश करें" : "Retry"}</button></div> : shownMatches.length ? <div className="job-list">{shownMatches.map(renderMatch)}</div> : <div className="empty-state work-empty"><div className="empty-icon"><ClipboardList size={23} /></div><strong>{tab === "Matched" ? (hi ? "अभी कोई मैच नहीं" : "No matched jobs yet") : tab === "Active" ? (hi ? "अभी कोई सक्रिय काम नहीं" : "No active jobs yet") : (hi ? "अभी कोई पूरा काम नहीं" : "No completed jobs yet")}</strong><p>{hi ? "ग्राहक द्वारा ऑफ़र चुनने और मैच दर्ज होने पर काम यहाँ दिखेगा।" : "Jobs appear here after a customer accepts your offer and the match is recorded."}</p></div>}
   </section>;
 }
 
