@@ -275,3 +275,57 @@ begin
   end if;
 end
 $$;
+
+-- Safe provider job discovery. The function intentionally omits exact address,
+-- customer contact details and free-form description text.
+alter table public.jobs
+  add column if not exists title text not null default 'Service request';
+
+create or replace function public.provider_available_jobs()
+returns table (
+  id uuid,
+  title text,
+  category_id uuid,
+  category_name_en text,
+  category_name_hi text,
+  icon_name text,
+  city text,
+  area_name text,
+  budget_min numeric,
+  budget_max numeric,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    j.id,
+    j.title,
+    c.id,
+    c.name_en,
+    c.name_hi,
+    c.icon_name,
+    j.city,
+    j.area_name,
+    j.budget_min,
+    j.budget_max,
+    j.created_at
+  from public.jobs j
+  join public.service_categories c on c.id = j.category_id and c.is_active
+  join public.provider_profiles p on p.user_id = (select auth.uid())
+  join public.provider_services ps
+    on ps.provider_id = p.user_id and ps.category_id = j.category_id
+  where (select auth.uid()) is not null
+    and public.has_role('provider')
+    and p.verification_status = 'approved'
+    and p.is_available
+    and p.service_area_id is not null
+    and j.service_area_id = p.service_area_id
+    and j.status = 'open'
+  order by j.created_at desc;
+$$;
+
+revoke all on function public.provider_available_jobs() from public;
+grant execute on function public.provider_available_jobs() to authenticated;
