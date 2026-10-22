@@ -354,6 +354,10 @@ function AccountAccessPage({ language, authMessage, setAuthMessage = () => {}, i
 
   const submit = async event => {
     event.preventDefault();
+    if (mode === "forgot") {
+      void sendResetLink();
+      return;
+    }
     setMessage("");
     setAuthMessage("");
     if (mode === "signup" && !name.trim()) {
@@ -370,13 +374,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage = () => {}, i
     }
     setBusy(true);
     try {
-      if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-          redirectTo: window.location.origin + window.location.pathname + "?reset-password=true"
-        });
-        if (error) throw error;
-        setMessage(hi ? "अगर इस ईमेल का खाता है, तो password reset link भेज दिया गया है। अपना inbox और spam folder देखें।" : "If an account exists for this email, a password reset link has been sent. Check your inbox and spam folder.");
-      } else if (mode === "reset") {
+      if (mode === "reset") {
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
         setMessage(hi ? "पासवर्ड बदल गया। ऐप खोल रहे हैं…" : "Password updated. Opening the app…");
