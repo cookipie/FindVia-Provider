@@ -442,23 +442,25 @@ begin
   if p_preferred_language not in ('hi', 'en') then
     raise exception 'Unsupported language';
   end if;
-  select count(distinct id) into v_category_count
-  from public.service_categories
-  where id = any(coalesce(p_category_ids, array[]::uuid[])) and is_active;
-  if v_category_count <> (select count(distinct x) from unnest(coalesce(p_category_ids, array[]::uuid[])) x) then
+  select count(distinct selected.id) into v_category_count
+  from unnest(coalesce(p_category_ids, array[]::uuid[])) as selected(id)
+  join public.service_categories c on c.id = selected.id and c.is_active;
+  if v_category_count <> (select count(distinct selected.id) from unnest(coalesce(p_category_ids, array[]::uuid[])) as selected(id)) then
     raise exception 'One or more selected services are unavailable';
   end if;
-  select count(distinct id) into v_area_count
-  from public.service_areas
-  where id = any(coalesce(p_service_area_ids, array[]::uuid[])) and is_active;
-  if v_area_count <> (select count(distinct x) from unnest(coalesce(p_service_area_ids, array[]::uuid[])) x) then
+  select count(distinct selected.id) into v_area_count
+  from unnest(coalesce(p_service_area_ids, array[]::uuid[])) as selected(id)
+  join public.service_areas a on a.id = selected.id and a.is_active;
+  if v_area_count <> (select count(distinct selected.id) from unnest(coalesce(p_service_area_ids, array[]::uuid[])) as selected(id)) then
     raise exception 'One or more selected service areas are unavailable';
   end if;
   update public.profiles
   set full_name = btrim(p_full_name), preferred_language = p_preferred_language, updated_at = now()
   where id = v_user_id;
   if not found then raise exception 'Provider profile was not initialized'; end if;
-  v_area_id := (coalesce(p_service_area_ids, array[]::uuid[]))[1];
+  select selected.id into v_area_id
+  from unnest(coalesce(p_service_area_ids, array[]::uuid[])) with ordinality as selected(id, position)
+  order by selected.position limit 1;
   update public.provider_profiles
   set service_area_id = v_area_id, updated_at = now()
   where user_id = v_user_id;
