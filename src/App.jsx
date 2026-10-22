@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase";
 import {
   Activity, ArrowDownLeft, ArrowRight, ArrowUpRight, Bell, BriefcaseBusiness,
-  CalendarDays, Check, CheckCircle2, ChevronDown, CircleHelp, Clock3, CreditCard, FileText,
+  CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, CircleHelp, Clock3, CreditCard, FileText,
   Filter, Hammer, Home, IndianRupee, MapPin, Menu, MessageCircle, Search, ClipboardList,
   Settings2, ShieldCheck, Sparkles, Wallet, Wrench, X, Zap
 } from "lucide-react";
@@ -94,6 +94,7 @@ function App() {
   const [profileError, setProfileError] = useState("");
   const [providerVerificationStatus, setProviderVerificationStatus] = useState("not_submitted");
   const [page, setPage] = useState("home");
+  const [pageHistory, setPageHistory] = useState([]);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [query, setQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -263,7 +264,20 @@ function App() {
   }), [jobs, query, categoryFilter, jobTab, submittedOffers]);
 
   const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 2800); };
-  const go = (next) => { setPage(next); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
+  const go = (next) => { setPage(current => { if (current !== next) setPageHistory(history => [...history, current].slice(-20)); return next; }); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
+  const goBack = () => {
+    if (showRecharge) { setShowRecharge(false); return; }
+    if (offerJob) { setOfferJob(null); return; }
+    if (selectedJob) { setSelectedJob(null); return; }
+    setPageHistory(history => {
+      if (!history.length) { setPage("home"); return []; }
+      const previous = history[history.length - 1];
+      setPage(previous);
+      return history.slice(0, -1);
+    });
+    setMobileMenu(false);
+    setNotificationsOpen(false);
+  };
   const markNotificationRead = async notificationId => {
     const row = notifications.find(item => item.id === notificationId);
     if (!row || row.read_at) return;
@@ -480,7 +494,7 @@ function App() {
 
       <main className="main-panel">
         <header className="topbar">
-          <div className="topbar-left"><IconButton label="Open menu" className="menu-toggle" onClick={() => setMobileMenu(true)}><Menu size={21} /></IconButton><div className="breadcrumb">{isHindi ? "प्रदाता कार्यक्षेत्र" : "Provider workspace"} <span>/</span> <strong>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल",account:"खाता",verification:"सत्यापन",notifications:"सूचनाएँ",support:"सहायता"}[page] || "विवरण") : (navItems.find(item => item.id === page)?.label || "Details")}</strong></div></div>
+          <div className="topbar-left">{(page !== "home" || selectedJob || offerJob || showRecharge) && <IconButton label={isHindi ? "पीछे जाएँ" : "Go back"} className="back-top-button" onClick={goBack}><ChevronLeft size={22} strokeWidth={2.4} /></IconButton>}<IconButton label="Open menu" className="menu-toggle" onClick={() => setMobileMenu(true)}><Menu size={21} /></IconButton><div className="breadcrumb">{isHindi ? "प्रदाता कार्यक्षेत्र" : "Provider workspace"} <span>/</span> <strong>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल",account:"खाता",verification:"सत्यापन",notifications:"सूचनाएँ",support:"सहायता"}[page] || "विवरण") : (navItems.find(item => item.id === page)?.label || "Details")}</strong></div></div>
           <div className="topbar-actions"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "Switch app language to English" : "ऐप की भाषा हिंदी करें"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"} <ChevronDown size={13} /></button><div className="demo-indicator"><span /> {isHindi ? "पूर्वावलोकन" : "Preview mode"}</div><IconButton label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}><Bell size={19} />{unreadNotificationCount > 0 && <i className="notification-dot" /> }</IconButton><div className="topbar-avatar">{profileName.trim().split(/\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV"}</div></div>
         </header>
 
