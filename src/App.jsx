@@ -471,10 +471,10 @@ function App() {
   const jobsResults = jobsLoading ? <div className="empty-state"><Activity size={25} /><strong>{isHindi ? "काम लोड हो रहे हैं…" : "Loading jobs…"}</strong></div> : jobsError ? <div className="empty-state"><CircleHelp size={25} /><strong>{isHindi ? "काम लोड नहीं हो सके" : "Could not load jobs"}</strong><p>{jobsError}</p><button className="button button-secondary" onClick={() => window.location.reload()}>{isHindi ? "फिर कोशिश करें" : "Retry"}</button></div> : filteredJobs.length ? <div className="job-list">{filteredJobs.map(job => <JobCard key={job.id} job={job} onOpen={setSelectedJob} onOffer={setOfferJob} language={language} />)}</div> : <div className="empty-state"><Search size={25} /><strong>{isHindi ? "कोई काम नहीं मिला" : "No jobs found"}</strong><p>{isHindi ? "आपका प्रोफ़ाइल सत्यापित और उपलब्ध होने पर आपके क्षेत्र के काम यहाँ दिखेंगे।" : "Jobs appear here when your provider profile is verified, available and matched to a service area."}</p><button className="button button-secondary" onClick={() => { setQuery(""); setCategoryFilter("All categories"); setJobTab("Available"); }}>{isHindi ? "फ़िल्टर हटाएँ" : "Clear filters"}</button></div>;
 
   if (authLoading) {
-    return <div className="account-loading"><div className="brand-mark"><Activity size={24} /></div><h1>FindVia Provider</h1><p>Restoring your secure session…</p></div>;
+    return <div className="account-loading"><button className="language-toggle auth-language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"}</button><div className="brand-mark"><Activity size={24} /></div><h1>FindVia Provider</h1><p>{isHindi ? "आपका सुरक्षित सत्र खोला जा रहा है…" : "Restoring your secure session…"}</p></div>;
   }
   if (!authSession || new URLSearchParams(window.location.search).get("reset-password") === "true") {
-    return <AccountAccessPage language={language} authMessage={authMessage} setAuthMessage={setAuthMessage} initialMode={new URLSearchParams(window.location.search).get("reset-password") === "true" ? "reset" : "signin"} />;
+    return <AccountAccessPage language={language} setLanguage={setLanguage} authMessage={authMessage} setAuthMessage={setAuthMessage} initialMode={new URLSearchParams(window.location.search).get("reset-password") === "true" ? "reset" : "signin"} />;
   }
 
   return (
@@ -669,7 +669,7 @@ function ProfilePage({ onSignOut, name, setName, service, setService, skills, se
   </section>;
 }
 
-function AccountAccessPage({ language, authMessage, setAuthMessage = () => {}, initialMode = "signin" }) {
+function AccountAccessPage({ language, setLanguage = () => {}, authMessage, setAuthMessage = () => {}, initialMode = "signin" }) {
   const hi = language === "Hindi";
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
@@ -830,6 +830,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage = () => {}, i
   };
 
   return <section className="page-section account-page">
+    <div className="account-language-control"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={hi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{hi ? "हिंदी" : "English"} <ChevronDown size={13} /></button></div>
     <div className="account-layout">
       <div className="account-brand">
         <div className="account-brand-icon"><Activity size={30} /></div>
