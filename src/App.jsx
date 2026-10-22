@@ -452,7 +452,7 @@ function App() {
           {page === "wallet" && !selectedJob && <WalletPage onRecharge={() => setShowRecharge(true)} requests={walletRequests} balance={walletBalance} ledger={walletLedger} loading={walletLoading} error={walletError} language={language} />}
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
-          {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
+          {page === "verification" && <VerificationPage notify={notify} go={go} language={language} userId={authSession.user.id} />}
           {page === "notifications" && <NotificationsPage go={go} language={language} notifications={notifications} loading={notificationsLoading} error={notificationsError} onRead={markNotificationRead} onRefresh={() => setNotificationsRefresh(value => value + 1)} />}
           {page === "support" && <SupportPage notify={notify} language={language} />}
         </div>
@@ -778,16 +778,74 @@ function AccountAccessPage({ language, authMessage, setAuthMessage = () => {}, i
   </section>;
 }
 
-function VerificationPage({ notify, go, language }) {
+function VerificationPage({ notify, go, language, userId }) {
   const hi = language === "Hindi";
-  const [documentType, setDocumentType] = useState("Identity proof");
-  const [fileName, setFileName] = useState("");
+  const [documentType, setDocumentType] = useState("identity_proof");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const loadDocuments = async () => {
+    setLoading(true);
+    setError("");
+    const { data, error: queryError } = await supabase.from("provider_verification_documents").select("id, document_type, original_filename, status, reviewer_note, created_at").eq("provider_id", userId).order("created_at", { ascending: false });
+    if (queryError) {
+      setError(queryError.message || "Could not load verification documents.");
+    } else {
+      setDocuments(data || []);
+    }
+    setLoading(false);
+  };
+  useEffect(() => { if (userId) void loadDocuments(); }, [userId]);
+  const uploadDocument = async event => {
+    event.preventDefault();
+    if (!selectedFile) { notify(hi ? "पहले फ़ाइल चुनें।" : "Choose a file first."); return; }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(selectedFile.type)) { notify(hi ? "केवल JPG, PNG, WEBP या PDF फ़ाइल चुनें।" : "Choose a JPG, PNG, WEBP or PDF file."); return; }
+    if (selectedFile.size <= 0 || selectedFile.size > 10 * 1024 * 1024) { notify(hi ? "फ़ाइल 10 MB से छोटी होनी चाहिए।" : "File must be 10 MB or smaller."); return; }
+    setUploading(true);
+    const safeName = selectedFile.name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-100) || "document";
+    const storagePath = `${userId}/${documentType}/${Date.now()}-${safeName}`;
+    try {
+      const { error: uploadError } = await supabase.storage.from("provider-verification").upload(storagePath, selectedFile, { contentType: selectedFile.type, upsert: false });
+      if (uploadError) throw uploadError;
+      const { error: recordError } = await supabase.from("provider_verification_documents").insert({
+        provider_id: userId,
+        document_type: documentType,
+        storage_path: storagePath,
+        original_filename: selectedFile.name.slice(0, 255),
+        mime_type: selectedFile.type,
+        file_size_bytes: selectedFile.size,
+        status: "pending"
+      });
+      if (recordError) {
+        await supabase.storage.from("provider-verification").remove([storagePath]);
+        throw recordError;
+      }
+      setSelectedFile(null);
+      const input = document.getElementById("doc-file");
+      if (input) input.value = "";
+      await loadDocuments();
+      notify(hi ? "दस्तावेज़ सुरक्षित रूप से भेज दिया गया। प्रबंधन इसकी जाँच करेगा।" : "Document uploaded securely. Management will review it.");
+    } catch (uploadError) {
+      notify(uploadError?.message || (hi ? "दस्तावेज़ अपलोड नहीं हो सका।" : "Could not upload the document."));
+    } finally {
+      setUploading(false);
+    }
+  };
+  const typeLabel = type => ({ identity_proof: hi ? "पहचान प्रमाण" : "Identity proof", skill_certificate: hi ? "कौशल प्रमाणपत्र" : "Skill certificate", experience_proof: hi ? "अनुभव प्रमाण" : "Experience proof" })[type] || type;
+  const statusLabel = status => ({ not_submitted: hi ? "जमा नहीं" : "Not submitted", pending: hi ? "जाँच बाकी" : "Pending review", approved: hi ? "स्वीकृत" : "Approved", rejected: hi ? "अस्वीकृत" : "Rejected", suspended: hi ? "निलंबित" : "Suspended" })[status] || status;
+  const statusTone = status => status === "approved" ? "success" : status === "rejected" || status === "suspended" ? "neutral" : "warning";
   return <section className="page-section">
-    <button className="back-link" onClick={() => go("profile")}>← Back to profile</button>
-    <div className="page-heading"><div><span className="eyebrow">ACCOUNT SAFETY</span><h1>{hi ? "प्रदाता सत्यापन" : "Provider verification"}</h1><p>{hi ? "सत्यापन से ग्राहकों को प्रदाता चुनने में भरोसा मिलता है।" : "Verification helps customers feel confident choosing a provider."}</p></div><div className="heading-icon"><ShieldCheck size={24} /></div></div>
-    <div className="preview-notice"><ShieldCheck size={17} /><span>{hi ? "दस्तावेज़ अपलोड और समीक्षा अभी जुड़े नहीं हैं। इस डेमो में असली पहचान दस्तावेज़ न दें।" : "Document upload and review are not connected yet. Do not submit real identity documents in this preview."}</span></div>
-    <div className="panel verification-panel"><h2>{hi ? "दस्तावेज़ सूची" : "Documents checklist"}</h2><div className="verification-row"><span className="verification-icon"><FileText size={19} /></span><div><strong>{hi ? "पहचान प्रमाण" : "Identity proof"}</strong><p>{hi ? "खाता सत्यापन के लिए सरकारी पहचान पत्र आवश्यक है।" : "Government ID required for account verification."}</p></div><StatusPill tone="warning">Not submitted</StatusPill></div><div className="verification-row"><span className="verification-icon"><BriefcaseBusiness size={19} /></span><div><strong>{hi ? "कौशल या अनुभव प्रमाण" : "Skill or experience proof"}</strong><p>{hi ? "प्रमाणपत्र या काम का प्रमाण वैकल्पिक है।" : "Optional certificates or relevant work proof."}</p></div><StatusPill>Optional</StatusPill></div>
-    <label htmlFor="doc-type">{hi ? "दस्तावेज़ का प्रकार" : "Document type"}</label><select className="form-control" id="doc-type" value={documentType} onChange={e => setDocumentType(e.target.value)}><option>Identity proof</option><option>Skill certificate</option><option>Experience proof</option></select><label htmlFor="doc-file">{hi ? "फ़ाइल चुनें (केवल डेमो)" : "Choose a file (preview only)"}</label><input className="form-control file-control" id="doc-file" type="file" accept="image/*,.pdf" onChange={e => setFileName(e.target.files?.[0]?.name || "")} /><p className="file-name">{fileName || "No file selected"}</p><button className="button button-primary" onClick={() => notify(fileName ? (hi ? "डेमो: फ़ाइल चुनी गई, अपलोड नहीं हुई।" : "Preview only: file was selected but not uploaded.") : (hi ? "पहले फ़ाइल चुनें। कोई दस्तावेज़ अपलोड नहीं होता।" : "Choose a file first. No documents are uploaded in preview mode."))}>{hi ? "आगे बढ़ें" : "Continue"} <ArrowRight size={16} /></button></div>
+    <button className="back-link" onClick={() => go("profile")}>← {hi ? "प्रोफ़ाइल पर वापस जाएँ" : "Back to profile"}</button>
+    <div className="page-heading"><div><span className="eyebrow">{hi ? "खाते की सुरक्षा" : "ACCOUNT SAFETY"}</span><h1>{hi ? "प्रदाता सत्यापन" : "Provider verification"}</h1><p>{hi ? "दस्तावेज़ निजी स्टोरेज में अपलोड होंगे और प्रबंधन उनकी जाँच करेगा।" : "Documents upload to private storage for management review."}</p></div><div className="heading-icon"><ShieldCheck size={24} /></div></div>
+    <div className="preview-notice"><ShieldCheck size={17} /><span>{hi ? "आपके दस्तावेज़ सार्वजनिक नहीं हैं। केवल आपका खाता और अधिकृत प्रबंधन उन्हें देख सकता है।" : "Your documents are private. Only your account and authorized management can access them."}</span></div>
+    {error && <div className="preview-notice"><CircleHelp size={17} /><span>{error}</span><button className="text-button" onClick={() => void loadDocuments()}>{hi ? "फिर कोशिश करें" : "Retry"}</button></div>}
+    <div className="panel verification-panel"><h2>{hi ? "जमा किए गए दस्तावेज़" : "Submitted documents"}</h2>
+      {loading ? <div className="empty-state compact-empty"><Activity size={20} /> {hi ? "दस्तावेज़ लोड हो रहे हैं…" : "Loading documents…"}</div> : documents.length ? documents.map(item => <div className="verification-row" key={item.id}><span className="verification-icon"><FileText size={19} /></span><div><strong>{typeLabel(item.document_type)}</strong><p>{item.original_filename} · {new Date(item.created_at).toLocaleDateString(hi ? "hi-IN" : "en-IN")}</p>{item.reviewer_note && <small>{item.reviewer_note}</small>}</div><StatusPill tone={statusTone(item.status)}>{statusLabel(item.status)}</StatusPill></div>) : <div className="empty-state compact-empty"><FileText size={22} /><strong>{hi ? "अभी कोई दस्तावेज़ नहीं" : "No documents submitted yet"}</strong><p>{hi ? "नीचे फ़ाइल चुनकर सत्यापन अनुरोध भेजें।" : "Choose a file below to submit a verification request."}</p></div>}
+      <form onSubmit={uploadDocument}><label htmlFor="doc-type">{hi ? "दस्तावेज़ का प्रकार" : "Document type"}</label><select className="form-control" id="doc-type" value={documentType} onChange={event => setDocumentType(event.target.value)}><option value="identity_proof">{hi ? "पहचान प्रमाण" : "Identity proof"}</option><option value="skill_certificate">{hi ? "कौशल प्रमाणपत्र" : "Skill certificate"}</option><option value="experience_proof">{hi ? "अनुभव प्रमाण" : "Experience proof"}</option></select><label htmlFor="doc-file">{hi ? "फ़ाइल चुनें (अधिकतम 10 MB)" : "Choose file (10 MB maximum)"}</label><input className="form-control file-control" id="doc-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={event => setSelectedFile(event.target.files?.[0] || null)} /><p className="file-name">{selectedFile?.name || (hi ? "कोई फ़ाइल नहीं चुनी" : "No file selected")}</p><button className="button button-primary" type="submit" disabled={uploading || loading}>{uploading ? (hi ? "अपलोड हो रहा है…" : "Uploading securely…") : (hi ? "सत्यापन के लिए भेजें" : "Submit for verification")} {uploading ? <Activity size={16} /> : <ArrowRight size={16} />}</button></form>
+    </div>
   </section>;
 }
 
