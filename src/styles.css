@@ -130,3 +130,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .pull-refresh-indicator svg{animation:findvia-spin .9s linear infinite}
 @keyframes findvia-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.startup-wordmark,.startup-progress span,.pull-refresh-indicator svg{animation:none!important}.startup-wordmark{color:#176b50;-webkit-text-stroke-color:transparent;stroke-dashoffset:0}}
+
+
+/* FindVia Provider brand mark */
+.startup-logo{display:block;width:108px;height:108px;object-fit:contain;margin:0 auto 14px;border-radius:24px}
+.brand-mark{overflow:hidden}
+.brand-mark img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.account-brand-icon{overflow:hidden}
+.account-brand-icon img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
