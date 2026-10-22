@@ -108,6 +108,10 @@ function App() {
   const [rechargeAmount, setRechargeAmount] = useState("500");
   const [rechargeUtr, setRechargeUtr] = useState("");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState("");
+  const [notificationsRefresh, setNotificationsRefresh] = useState(0);
   const [profileName, setProfileName] = useState("");
   const [profileService, setProfileService] = useState("");
   const [profileSkills, setProfileSkills] = useState([]);
@@ -244,6 +248,18 @@ function App() {
 
   const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 2800); };
   const go = (next) => { setPage(next); setSelectedJob(null); setOfferJob(null); setMobileMenu(false); };
+  const markNotificationRead = async notificationId => {
+    const row = notifications.find(item => item.id === notificationId);
+    if (!row || row.read_at) return;
+    const readAt = new Date().toISOString();
+    const { error } = await supabase.from("notifications").update({ read_at: readAt }).eq("id", notificationId);
+    if (error) {
+      notify(error.message || "Could not mark notification as read.");
+      return;
+    }
+    setNotifications(current => current.map(item => item.id === notificationId ? { ...item, read_at: readAt } : item));
+  };
+
   const saveProfile = async () => {
     if (!authSession?.user?.id) { notify("Please sign in again."); return; }
     if (profileName.trim().length < 2) { notify(isHindi ? "अपना पूरा नाम लिखें।" : "Enter your full name."); return; }
@@ -265,6 +281,35 @@ function App() {
       setProfileSaving(false);
     }
   };
+
+  useEffect(() => {
+    const userId = authSession?.user?.id;
+    if (!userId) return;
+    let active = true;
+    const loadNotifications = async () => {
+      setNotificationsLoading(true);
+      setNotificationsError("");
+      try {
+        const { data, error } = await supabase.from("notifications").select("id, title, body, event_type, related_job_id, read_at, created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
+        if (!active) return;
+        if (error) {
+          setNotificationsError(error.message || "Could not load notifications.");
+          setNotifications([]);
+        } else {
+          setNotifications(data || []);
+        }
+      } catch (error) {
+        if (active) {
+          setNotificationsError(error?.message || "Could not connect to notifications.");
+          setNotifications([]);
+        }
+      } finally {
+        if (active) setNotificationsLoading(false);
+      }
+    };
+    void loadNotifications();
+    return () => { active = false; };
+  }, [authSession?.user?.id, notificationsRefresh]);
 
   useEffect(() => {
     const userId = authSession?.user?.id;
@@ -395,7 +440,7 @@ function App() {
           <div className="topbar-actions"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "Switch app language to English" : "ऐप की भाषा हिंदी करें"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"} <ChevronDown size={13} /></button><div className="demo-indicator"><span /> {isHindi ? "पूर्वावलोकन" : "Preview mode"}</div><IconButton label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}><Bell size={19} /><i className="notification-dot" /></IconButton><div className="topbar-avatar">{profileName.trim().split(/\s+/).slice(0,2).map(part => part[0] || "").join("").toUpperCase() || "FV"}</div></div>
         </header>
 
-        {notificationsOpen && <div className="notification-popover"><div className="popover-heading"><strong>Notifications</strong><button onClick={() => setNotificationsOpen(false)} aria-label="Close notifications"><X size={16} /></button></div><div className="notification-item"><span className="notification-symbol green"><BriefcaseBusiness size={16} /></span><div><strong>New jobs in your area</strong><p>3 sample job requests are ready to explore.</p><small>Preview · Just now</small></div></div><div className="notification-item"><span className="notification-symbol yellow"><Wallet size={16} /></span><div><strong>Wallet is in preview mode</strong><p>Connect your new account before adding real money.</p><small>Preview · Today</small></div></div></div>}
+        {notificationsOpen && <div className="notification-popover"><div className="popover-heading"><strong>{isHindi ? "सूचनाएँ" : "Notifications"}</strong><button onClick={() => setNotificationsOpen(false)} aria-label="Close notifications"><X size={16} /></button></div>{notificationsLoading ? <div className="empty-state compact-empty">{isHindi ? "लोड हो रहा है…" : "Loading…"}</div> : notificationsError ? <div className="empty-state compact-empty">{isHindi ? "सूचनाएँ लोड नहीं हुईं" : "Could not load notifications"}</div> : notifications.length ? notifications.slice(0,4).map(item => <button type="button" className={`notification-item notification-clickable ${item.read_at ? "" : "notification-unread"}`} key={item.id} onClick={() => { void markNotificationRead(item.id); setNotificationsOpen(false); go("notifications"); }}><span className="notification-symbol green"><Bell size={16} /></span><div><strong>{item.title}</strong><p>{item.body}</p><small>{new Date(item.created_at).toLocaleString(isHindi ? "hi-IN" : "en-IN", { dateStyle: "medium", timeStyle: "short" })}</small></div></button>) : <div className="empty-state compact-empty">{isHindi ? "अभी कोई सूचना नहीं है।" : "No notifications yet."}</div>}<button className="text-button" onClick={() => { setNotificationsOpen(false); go("notifications"); }}>{isHindi ? "सभी सूचनाएँ देखें" : "View all notifications"}</button></div>}
 
         <div className="page-content">
           {page === "home" && !selectedJob && <HomePage go={go} onOpenJob={setSelectedJob} onOffer={setOfferJob} submittedOffers={submittedOffers} jobs={jobs} jobsLoading={jobsLoading} jobsError={jobsError} available={providerAvailable} setAvailable={updateAvailability} language={language} name={profileName} />}
@@ -408,7 +453,7 @@ function App() {
           {page === "profile" && !selectedJob && <ProfilePage onSignOut={async () => { const { error } = await supabase.auth.signOut(); if (error) notify(error.message); else { setPage("home"); notify("You have signed out."); } }} name={profileName} setName={setProfileName} service={profileService} setService={setProfileService} skills={profileSkills} setSkills={setProfileSkills} areas={serviceAreas} setAreas={setServiceAreas} categories={availableCategories} serviceAreasList={availableAreas} loading={profileLoading} saving={profileSaving} profileError={profileError} verificationStatus={providerVerificationStatus} onSave={saveProfile} language={language} setLanguage={setLanguage} notify={notify} go={go} />}
           {page === "account" && <AccountAccessPage go={go} notify={notify} language={language} />}
           {page === "verification" && <VerificationPage notify={notify} go={go} language={language} />}
-          {page === "notifications" && <NotificationsPage go={go} language={language} />}
+          {page === "notifications" && <NotificationsPage go={go} language={language} notifications={notifications} loading={notificationsLoading} error={notificationsError} onRead={markNotificationRead} onRefresh={() => setNotificationsRefresh(value => value + 1)} />}
           {page === "support" && <SupportPage notify={notify} language={language} />}
         </div>
 
