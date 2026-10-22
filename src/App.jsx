@@ -170,7 +170,7 @@ function App() {
           supabase.from("provider_service_areas").select("service_area_id").eq("provider_id", userId)
         ]);
         if (!active) return;
-        const coreError = baseResult.error || providerResult.error || categoriesResult.error || areasResult.error;
+        const coreError = baseResult.error || providerResult.error || categoriesResult.error || areasResult.error || servicesResult.error || providerAreasResult.error;
         if (coreError) setProfileError(coreError.message || "Could not load your profile.");
         setProviderVerificationStatus(providerResult.data?.verification_status || "not_submitted");
         const categories = categoriesResult.data || [];
@@ -290,6 +290,7 @@ function App() {
   const saveProfile = async () => {
     if (!authSession?.user?.id) { notify(isHindi ? "कृपया दोबारा लॉगिन करें।" : "Please sign in again."); return; }
     if (profileName.trim().length < 2) { notify(isHindi ? "अपना पूरा नाम लिखें।" : "Enter your full name."); return; }
+    if (profileError) { notify(isHindi ? "प्रोफ़ाइल डेटा ठीक से लोड नहीं हुआ। पहले दोबारा लोड करें।" : "Profile data did not load completely. Reload it before saving."); return; }
     setProfileSaving(true);
     try {
       const selectedCategories = availableCategories.filter(item => profileSkills.includes(item.name_en) || item.name_en === profileService).map(item => item.id);
