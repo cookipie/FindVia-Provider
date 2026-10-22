@@ -262,6 +262,13 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
+  const [resetSecondsLeft, setResetSecondsLeft] = useState(0);
+
+  useEffect(() => {
+    if (!busy || mode !== "forgot" || resetSecondsLeft <= 0) return;
+    const intervalId = window.setInterval(() => setResetSecondsLeft(value => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [busy, mode, resetSecondsLeft]);
 
   const showResetMessage = text => {
     setMessage(text);
@@ -294,6 +301,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     const waiting = hi ? "Supabase Auth से संपर्क कर रहे हैं…" : "Contacting Supabase Auth…";
     showResetMessage(waiting);
     setBusy(true);
+    setResetSecondsLeft(12);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 12000);
     try {
@@ -346,6 +354,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     } finally {
       window.clearTimeout(timeoutId);
       setBusy(false);
+      setResetSecondsLeft(0);
     }
   };
 
@@ -434,6 +443,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : mode === "forgot" ? (hi ? "रीसेट लिंक मँगाएँ" : "Reset your password") : mode === "reset" ? (hi ? "नया पासवर्ड लिखें" : "Choose a new password") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
         <p>{mode === "forgot" ? (hi ? "आपके ईमेल पर सुरक्षित reset link भेजेंगे।" : "We’ll email you a secure password reset link.") : mode === "reset" ? (hi ? "कम से कम 8 अक्षरों का नया पासवर्ड चुनें।" : "Choose a new password with at least 8 characters.") : (hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely.")}</p>
         <div id="auth-reset-status" className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status" aria-live="polite">{message || authMessage || " "}</div>
+        {busy && mode === "forgot" && <div className="account-auth-message" role="timer" aria-live="off" style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}><Clock3 size={16} />{hi ? "जवाब का इंतज़ार:" : "Timeout in:"} <strong>{resetSecondsLeft}</strong> {hi ? "सेकंड" : "seconds"}</div>}
         <form onSubmit={submit} noValidate>
           {mode === "signup" && <>
             <label htmlFor="auth-full-name">{hi ? "पूरा नाम" : "Full name"}</label>
