@@ -270,7 +270,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
     if (mode === "forgot") {
       const cleanEmail = email.trim().toLowerCase();
       if (!cleanEmail) { setMessage(hi ? "पहले अपना ईमेल लिखें।" : "Enter your email address first."); return; }
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
         setMessage(hi ? "ईमेल पता सही लिखें, जैसे name@example.com।" : "Enter a valid email address, for example name@example.com.");
         return;
       }
