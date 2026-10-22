@@ -387,7 +387,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
           email: email.trim().toLowerCase(),
           password,
           options: {
-            data: { full_name: name.trim(), phone: phone || null },
+            data: { full_name: name.trim(), phone: phone || null, app_role: "provider" },
             emailRedirectTo: window.location.origin + window.location.pathname
           }
         });
