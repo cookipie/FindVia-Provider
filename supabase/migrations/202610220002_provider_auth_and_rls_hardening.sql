@@ -415,6 +415,14 @@ for select to authenticated using (
     or public.has_role('management')
   )
 );
+drop policy if exists "provider removes unregistered verification uploads" on storage.objects;
+create policy "provider removes unregistered verification uploads" on storage.objects
+for delete to authenticated using (
+  bucket_id = 'provider-verification'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+  and public.has_role('provider')
+  and not exists (select 1 from public.provider_verification_documents d where d.storage_path = name)
+);
 -- Atomically save a provider's editable profile and service coverage.
 create or replace function public.provider_save_profile(
   p_full_name text,
