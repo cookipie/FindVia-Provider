@@ -88,7 +88,7 @@ end;
 $$;
 
 create or replace function public.provider_verify_completion_otp(p_job_id uuid, p_otp text)
-returns void
+returns boolean
 language plpgsql
 security definer
 set search_path = ''
@@ -135,7 +135,7 @@ begin
 
   if v_code.otp_hash <> encode(extensions.digest(p_otp, 'sha256'), 'hex') then
     update public.completion_otps set attempts = attempts + 1 where id = v_code.id;
-    raise exception 'Incorrect completion code';
+    return false;
   end if;
 
   update public.completion_otps set consumed_at = now() where id = v_code.id;
@@ -148,8 +148,9 @@ begin
   values
     (v_job.customer_id, 'Work completed', 'The completion code was verified and the job is marked complete.', 'job_completed', p_job_id),
     (v_user_id, 'Work completed', 'The completion code was verified and the job is marked complete.', 'job_completed', p_job_id);
+  return true;
 end;
-$$;
+$;
 
 revoke all on function public.provider_start_matched_job(uuid) from public, anon;
 revoke all on function public.customer_generate_completion_otp(uuid) from public, anon;
