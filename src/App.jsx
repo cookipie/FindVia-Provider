@@ -150,7 +150,7 @@ function App() {
       try {
         const [jobsResult, offersResult, profileResult] = await Promise.all([
           supabase.rpc("provider_available_jobs"),
-          supabase.from("job_offers").select("job_id, offered_price, message, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }),
+          supabase.rpc("provider_my_offers"),
           supabase.from("provider_profiles").select("is_available").eq("user_id", userId).maybeSingle()
         ]);
         if (!active) return;
@@ -165,10 +165,12 @@ function App() {
         } else {
           setSubmittedOffers((offersResult.data || []).map(offer => ({
             jobId: offer.job_id,
-            title: "Job offer",
+            title: offer.job_title || "Job offer",
             price: Number(offer.offered_price),
             note: offer.message || "",
-            status: offer.status
+            status: offer.status,
+            city: offer.city || "",
+            area: offer.area_name || ""
           })));
         }
         if (!profileResult.error && profileResult.data) {
