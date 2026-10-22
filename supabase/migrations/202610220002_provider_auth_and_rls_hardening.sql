@@ -45,6 +45,26 @@ begin
 end;
 $$;
 
+-- Backfill accounts created before this migration was applied.
+insert into public.profiles (id, full_name, phone)
+select u.id, coalesce(u.raw_user_meta_data ->> 'full_name', ''), coalesce(u.raw_user_meta_data ->> 'phone', u.phone)
+from auth.users u
+on conflict (id) do nothing;
+
+insert into public.user_roles (user_id, role)
+select u.id, case when u.raw_user_meta_data ->> 'app_role' = 'customer'
+  then 'customer'::public.app_role else 'provider'::public.app_role end
+from auth.users u
+where not exists (select 1 from public.user_roles r where r.user_id = u.id)
+on conflict (user_id, role) do nothing;
+
+insert into public.provider_profiles (user_id)
+select r.user_id from public.user_roles r where r.role = 'provider'
+on conflict (user_id) do nothing;
+
+insert into public.wallet_accounts (provider_id)
+select r.user_id from public.user_roles r where r.role = 'provider'
+on conflict (provider_id) do nothing;
 -- The OTP hash must never be readable from the browser. Verification will be
 -- implemented through a trusted server-side function, not table reads.
 drop policy if exists "participants can see otp metadata only" on public.completion_otps;
