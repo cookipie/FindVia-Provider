@@ -281,14 +281,14 @@ function App() {
     const readAt = new Date().toISOString();
     const { error } = await supabase.from("notifications").update({ read_at: readAt }).eq("id", notificationId);
     if (error) {
-      notify(error.message || "Could not mark notification as read.");
+      notify(error.message || (isHindi ? "सूचना पढ़ी हुई चिह्नित नहीं हो सकी।" : "Could not mark notification as read."));
       return;
     }
     setNotifications(current => current.map(item => item.id === notificationId ? { ...item, read_at: readAt } : item));
   };
 
   const saveProfile = async () => {
-    if (!authSession?.user?.id) { notify("Please sign in again."); return; }
+    if (!authSession?.user?.id) { notify(isHindi ? "कृपया दोबारा लॉगिन करें।" : "Please sign in again."); return; }
     if (profileName.trim().length < 2) { notify(isHindi ? "अपना पूरा नाम लिखें।" : "Enter your full name."); return; }
     setProfileSaving(true);
     try {
@@ -353,7 +353,7 @@ function App() {
           supabase.from("provider_commission_charges").select("id, job_id, job_price, commission_amount, settled_amount, status, created_at").eq("provider_id", userId).order("created_at", { ascending: false }).limit(50)
         ]);
         if (!active) return;
-        const firstError = accountResult.error || ledgerResult.error || requestsResult.error;
+        const firstError = accountResult.error || ledgerResult.error || requestsResult.error || commissionsResult.error;
         if (firstError) setWalletError(firstError.message || "Could not load wallet information.");
         if (!accountResult.error) setWalletBalance(Number(accountResult.data?.balance || 0));
         if (!ledgerResult.error) setWalletLedger(ledgerResult.data || []);
@@ -374,17 +374,17 @@ function App() {
     if (!userId) return;
     try {
       const { data, error } = await supabase.from("provider_profiles").update({ is_available: nextValue }).eq("user_id", userId).select("user_id").maybeSingle();
-      if (error || !data) { notify(error?.message || "Provider profile is not ready yet. Complete account setup first."); return; }
+      if (error || !data) { notify(error?.message || (isHindi ? "प्रदाता प्रोफ़ाइल तैयार नहीं है। पहले खाता सेटअप पूरा करें।" : "Provider profile is not ready yet. Complete account setup first.")); return; }
       setProviderAvailable(nextValue);
       setJobsRefresh(value => value + 1);
     } catch (error) {
-      notify(error?.message || "Could not update availability. Check your connection.");
+      notify(error?.message || (isHindi ? "उपलब्धता अपडेट नहीं हुई। इंटरनेट कनेक्शन जाँचें।" : "Could not update availability. Check your connection."));
     }
   };
   const submitOffer = async (event) => {
     event.preventDefault();
-    if (!offerPrice || Number(offerPrice) <= 0) { notify("Enter a valid offer amount."); return; }
-    if (!authSession?.user?.id || !offerJob?.id) { notify("Please sign in again before sending an offer."); return; }
+    if (!offerPrice || !Number.isFinite(Number(offerPrice)) || Number(offerPrice) <= 0) { notify(isHindi ? "ऑफ़र की सही राशि लिखें।" : "Enter a valid offer amount."); return; }
+    if (!authSession?.user?.id || !offerJob?.id) { notify(isHindi ? "ऑफ़र भेजने से पहले दोबारा लॉगिन करें।" : "Please sign in again before sending an offer."); return; }
     try {
       const { error } = await supabase.from("job_offers").insert({
         job_id: offerJob.id,
@@ -394,19 +394,19 @@ function App() {
         status: "pending"
       });
       if (error) {
-        if (error.code === "23505") notify("You have already sent an offer for this job.");
-        else if (error.code === "42501") notify("Your provider profile must be verified and available before sending offers.");
-        else notify(error.message || "Offer could not be sent.");
+        if (error.code === "23505") notify(isHindi ? "आप इस काम के लिए पहले ही ऑफ़र भेज चुके हैं।" : "You have already sent an offer for this job.");
+        else if (error.code === "42501") notify(isHindi ? "ऑफ़र भेजने से पहले आपकी प्रोफ़ाइल सत्यापित और उपलब्ध होनी चाहिए।" : "Your provider profile must be verified and available before sending offers.");
+        else notify(error.message || (isHindi ? "ऑफ़र नहीं भेजा जा सका।" : "Offer could not be sent."));
         return;
       }
     } catch (error) {
-      notify(error?.message || "Offer could not be sent. Check your connection.");
+      notify(error?.message || (isHindi ? "ऑफ़र नहीं भेजा जा सका। इंटरनेट कनेक्शन जाँचें।" : "Offer could not be sent. Check your connection."));
       return;
     }
     setSubmittedOffers(current => [{ jobId: offerJob.id, title: offerJob.title, price: Number(offerPrice), note: offerNote, status: "pending", area: offerJob.area || "" }, ...current.filter(item => item.jobId !== offerJob.id)]);
     setJobsRefresh(value => value + 1);
     setOfferJob(null); setOfferPrice(""); setOfferNote("");
-    notify("Your offer was sent to the customer.");
+    notify(isHindi ? "आपका ऑफ़र ग्राहक को भेज दिया गया।" : "Your offer was sent to the customer.");
   };
   const startMatchedJob = async (jobId) => {
     try {
