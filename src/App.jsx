@@ -152,6 +152,7 @@ function App() {
     };
   }, []);
   useEffect(() => { try { window.localStorage.setItem("findvia-provider:language", JSON.stringify(language)); } catch {} }, [language]);
+  useEffect(() => { document.documentElement.lang = language === "Hindi" ? "hi" : "en"; }, [language]);
 
   useEffect(() => {
     const userId = authSession?.user?.id;
@@ -373,6 +374,10 @@ function App() {
   const updateAvailability = async nextValue => {
     const userId = authSession?.user?.id;
     if (!userId) return;
+    if (nextValue && providerVerificationStatus !== "approved") {
+      notify(isHindi ? "काम पाने के लिए पहले अपना सत्यापन पूरा करवाएँ।" : "Get your profile verified before turning availability on.");
+      return;
+    }
     try {
       const { data, error } = await supabase.from("provider_profiles").update({ is_available: nextValue }).eq("user_id", userId).select("user_id").maybeSingle();
       if (error || !data) { notify(error?.message || (isHindi ? "प्रदाता प्रोफ़ाइल तैयार नहीं है। पहले खाता सेटअप पूरा करें।" : "Provider profile is not ready yet. Complete account setup first.")); return; }
@@ -617,7 +622,7 @@ function MyWorkPage({ offers, matches, loading, error, go, language, onStartJob,
       {tabs.map(item => <button key={item.label} role="tab" aria-selected={tab === item.label} className={tab === item.label ? "selected" : ""} onClick={() => setTab(item.label)}>{hi ? ({Offers:"ऑफ़र",Matched:"मैच हुए",Active:"जारी",Completed:"पूरे"}[item.label]) : item.label}<span className="tab-count">{item.count}</span></button>)}
     </div>
     {tab === "Offers" ? (offerList.length > 0 ? <div className="job-list">{offerList.map(offer => <article className="job-card work-offer-card" key={offer.jobId}>
-      <div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title || (hi ? "काम का ऑफ़र" : "Job offer")}</h3><span className="job-id">{String(offer.jobId || "").slice(0,8).toUpperCase()}</span></div><p className="job-category">{[offer.area, offer.city].filter(Boolean).join(", ") || (hi ? "क्षेत्र की जानकारी उपलब्ध नहीं" : "Area details unavailable")}</p></div><StatusPill tone={offer.status === "rejected" || offer.status === "withdrawn" ? "neutral" : "warning"}>{offer.status || "pending"}</StatusPill></div>
+      <div className="job-card-top"><div className="category-icon mint"><BriefcaseBusiness size={21} /></div><div className="job-main"><div className="job-title-row"><h3>{offer.title || (hi ? "काम का ऑफ़र" : "Job offer")}</h3><span className="job-id">{String(offer.jobId || "").slice(0,8).toUpperCase()}</span></div><p className="job-category">{[offer.area, offer.city].filter(Boolean).join(", ") || (hi ? "क्षेत्र की जानकारी उपलब्ध नहीं" : "Area details unavailable")}</p></div><StatusPill tone={offer.status === "accepted" ? "success" : offer.status === "rejected" || offer.status === "withdrawn" ? "neutral" : "warning"}>{statusLabel(offer.status || "pending")}</StatusPill></div>
       <div className="work-offer-bottom"><div><span className="eyebrow">{hi ? "आपका ऑफ़र" : "YOUR OFFER"}</span><strong className="work-offer-price">₹{Number(offer.price).toLocaleString("en-IN")}</strong></div><div className="work-offer-message">{offer.note || (hi ? "कोई संदेश नहीं जोड़ा" : "No message added")}</div></div>
     </article>)}</div> : <div className="empty-state work-empty"><div className="empty-icon"><ClipboardList size={23} /></div><strong>{hi ? "अभी कोई ऑफ़र नहीं" : "No offers sent yet"}</strong><p>{hi ? "उपलब्ध काम देखें और अपनी कीमत भेजें।" : "Browse available jobs and send your price."}</p><button className="button button-primary" onClick={() => go("jobs")}>{hi ? "काम खोजें" : "Explore jobs"} <ArrowRight size={16} /></button></div>) : loading ? <div className="empty-state"><Activity size={25} /><strong>{hi ? "मैच हुए काम लोड हो रहे हैं…" : "Loading matched work…"}</strong></div> : error ? <div className="empty-state"><CircleHelp size={25} /><strong>{hi ? "काम लोड नहीं हो सके" : "Could not load matched work"}</strong><p>{error}</p><button className="button button-secondary" onClick={() => window.location.reload()}>{hi ? "फिर कोशिश करें" : "Retry"}</button></div> : shownMatches.length ? <div className="job-list">{shownMatches.map(renderMatch)}</div> : <div className="empty-state work-empty"><div className="empty-icon"><ClipboardList size={23} /></div><strong>{tab === "Matched" ? (hi ? "अभी कोई मैच नहीं" : "No matched jobs yet") : tab === "Active" ? (hi ? "अभी कोई सक्रिय काम नहीं" : "No active jobs yet") : (hi ? "अभी कोई पूरा काम नहीं" : "No completed jobs yet")}</strong><p>{hi ? "ग्राहक द्वारा ऑफ़र चुनने और मैच दर्ज होने पर काम यहाँ दिखेगा।" : "Jobs appear here after a customer accepts your offer and the match is recorded."}</p></div>}
   </section>;
