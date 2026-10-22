@@ -14,7 +14,7 @@ A mobile-first provider app for the FindVia service marketplace. The current pub
 
 ## Important limits
 - A successful frontend deployment proves the app builds; it does not prove every database/RLS/storage flow works against the live Supabase project.
-- Migrations through 011 were reported successful by the project owner. Migration 012 adds a critical guard that prevents providers from approving their own verification; it must also be applied to the live Supabase project. Still required: end-to-end tests with separate customer/provider/management accounts, including matching, OTP attempts/expiry, wallet settlement, recharge approval, RLS boundaries, provider verification anti-self-approval, and document privacy.
+- Migrations through 012 have been reported successful by the project owner. Migration 012 adds a critical guard that prevents providers from approving their own verification. This is owner-reported status; the app cannot independently inspect the live database from this repository. Still required: end-to-end tests with separate customer/provider/management accounts, including matching, OTP attempts/expiry, wallet settlement, recharge approval, RLS boundaries, provider verification anti-self-approval, and document privacy.
 - The customer-side OTP generation and offer acceptance screens belong to the future Customer App. A full Management App UI has not yet been built; current management capabilities are database/RPC policies only.
 - No Android APK/AAB has been built or signed yet, and Play Store publication has not happened.
 - Never store Supabase service-role keys in this app. Only the public publishable/anon key belongs in the client, protected by RLS and server-side functions.
@@ -29,7 +29,7 @@ GitHub Pages must use **GitHub Actions** as its publishing source. The workflow 
 4. Run `npm run dev`.
 
 ## Shared Supabase migrations
-Apply migration files in `supabase/migrations` in filename order, using the same shared Supabase project for all three future apps. The current live project also needs migration `202610220012_guard_provider_verification.sql` (copy helper: `https://cookipie.github.io/FindVia-Provider/sql-copy.html?v=20261022.22`). Adding a SQL file to GitHub does **not** execute it in Supabase. Keep settings such as commission rules and service categories centrally configurable rather than hardcoding them in each app.
+Apply migration files in `supabase/migrations` in filename order, using the same shared Supabase project for all three future apps. Migration `202610220012_guard_provider_verification.sql` has been reported applied to the live project. Adding a SQL file to GitHub does **not** execute it in Supabase; each new migration still requires a separate Supabase SQL run. Keep settings such as commission rules and service categories centrally configurable rather than hardcoding them in each app.
 
 ## Remaining Provider App milestones
 1. Finish functional UI/security audit and repair issues found.
