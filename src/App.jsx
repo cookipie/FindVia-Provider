@@ -252,7 +252,7 @@ function ProfilePage({ onSignOut, name, setName, service, setService, skills, se
 
 
 
-function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode = "signin" }) {
+function AccountAccessPage({ language, authMessage, setAuthMessage = () => {}, initialMode = "signin" }) {
   const hi = language === "Hindi";
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState("");
