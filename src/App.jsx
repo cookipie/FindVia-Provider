@@ -519,7 +519,7 @@ function App() {
   const jobsResults = jobsLoading ? <div className="empty-state"><Activity size={25} /><strong>{isHindi ? "काम लोड हो रहे हैं…" : "Loading jobs…"}</strong></div> : jobsError ? <div className="empty-state"><CircleHelp size={25} /><strong>{isHindi ? "काम लोड नहीं हो सके" : "Could not load jobs"}</strong><p>{jobsError}</p><button className="button button-secondary" onClick={() => window.location.reload()}>{isHindi ? "फिर कोशिश करें" : "Retry"}</button></div> : filteredJobs.length ? <div className="job-list">{filteredJobs.map(job => <JobCard key={job.id} job={job} onOpen={setSelectedJob} onOffer={setOfferJob} language={language} />)}</div> : <div className="empty-state"><Search size={25} /><strong>{isHindi ? "कोई काम नहीं मिला" : "No jobs found"}</strong><p>{isHindi ? "आपका प्रोफ़ाइल सत्यापित और उपलब्ध होने पर आपके क्षेत्र के काम यहाँ दिखेंगे।" : "Jobs appear here when your provider profile is verified, available and matched to a service area."}</p><button className="button button-secondary" onClick={() => { setQuery(""); setCategoryFilter("All categories"); setJobTab("Available"); }}>{isHindi ? "फ़िल्टर हटाएँ" : "Clear filters"}</button></div>;
 
   if (authLoading) {
-    return <div className="account-loading"><button className="language-toggle auth-language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"}</button><div className="startup-wordmark" aria-label="FindVia"><span>FindVia</span></div><h1>FindVia Provider</h1><div className="startup-progress" aria-hidden="true"><span /></div><p>{isHindi ? "आपका सुरक्षित सत्र खोला जा रहा है…" : "Restoring your secure session…"}</p></div>;
+    return <div className="account-loading"><button className="language-toggle auth-language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={isHindi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{isHindi ? "हिंदी" : "English"}</button><img className="startup-logo" src="./findvia-provider.svg" alt="FindVia Provider logo" /><h1>FindVia Provider</h1><div className="startup-progress" aria-hidden="true"><span /></div><p>{isHindi ? "आपका सुरक्षित सत्र खोला जा रहा है…" : "Restoring your secure session…"}</p></div>;
   }
   if (!authSession || new URLSearchParams(window.location.search).get("reset-password") === "true") {
     return <AccountAccessPage language={language} setLanguage={setLanguage} authMessage={authMessage} setAuthMessage={setAuthMessage} initialMode={new URLSearchParams(window.location.search).get("reset-password") === "true" ? "reset" : "signin"} />;
@@ -528,7 +528,7 @@ function App() {
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileMenu ? "sidebar-open" : ""}`}>
-        <div className="brand-lockup"><div className="brand-mark"><Activity size={22} strokeWidth={2.5} /></div><div><strong>FindVia</strong><small>PROVIDER APP</small></div><IconButton label="Close menu" className="sidebar-close" onClick={() => setMobileMenu(false)}><X size={20} /></IconButton></div>
+        <div className="brand-lockup"><div className="brand-mark"><img src="./findvia-provider.svg" alt="" /></div><div><strong>FindVia</strong><small>PROVIDER APP</small></div><IconButton label="Close menu" className="sidebar-close" onClick={() => setMobileMenu(false)}><X size={20} /></IconButton></div>
         <div className="workspace-label">{isHindi ? "मुख्य मेनू" : "WORKSPACE"}</div>
         <nav className="side-nav" aria-label="Main navigation">
           {navItems.map(item => { const Icon = item.icon; return <button key={item.id} className={`nav-link ${page === item.id ? "active" : ""}`} onClick={() => go(item.id)}><Icon size={19} strokeWidth={1.9} /><span>{isHindi ? ({home:"होम",jobs:"काम",work:"मेरे काम",wallet:"वॉलेट",profile:"प्रोफ़ाइल"}[item.id]) : item.label}</span>{item.id === "jobs" && <span className="nav-count">{jobs.length}</span>}</button>; })}
@@ -881,7 +881,7 @@ function AccountAccessPage({ language, setLanguage = () => {}, authMessage, setA
     <div className="account-language-control"><button className="language-toggle" type="button" onClick={() => setLanguage(value => value === "English" ? "Hindi" : "English")} aria-label={hi ? "ऐप की भाषा अंग्रेज़ी करें" : "Switch app language to Hindi"}><span className="language-globe">文</span>{hi ? "हिंदी" : "English"} <ChevronDown size={13} /></button></div>
     <div className="account-layout">
       <div className="account-brand">
-        <div className="account-brand-icon"><Activity size={30} /></div>
+        <div className="account-brand-icon"><img src="./findvia-provider.svg" alt="" /></div>
         <span className="eyebrow">FINDVIA PROVIDER</span>
         <h1>{hi ? "आपका काम, अब आसान।" : "Your work, made simpler."}</h1>
         <p>{hi ? "अपने खाते से सुरक्षित रूप से प्रवेश करें और अपने काम को संभालें।" : "Create your secure account to manage your provider profile and work."}</p>
