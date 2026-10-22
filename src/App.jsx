@@ -264,8 +264,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
   const [needsEmailConfirm, setNeedsEmailConfirm] = useState(false);
 
   const sendResetLink = async () => {
-    // Temporary click diagnostic: prove whether the live page is running this handler.
-    window.alert(hi ? "रीसेट बटन का क्लिक ऐप तक पहुँचा।" : "Reset button click reached the app.");
     setAuthMessage("");
     setNeedsEmailConfirm(false);
     setMessage(hi ? "रीसेट बटन दब गया है — ईमेल जाँच रहे हैं…" : "Reset button clicked — checking your email…");
@@ -381,6 +379,7 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
         <span className="eyebrow">{mode === "signin" ? (hi ? "वापसी पर स्वागत है" : "WELCOME BACK") : mode === "forgot" ? (hi ? "पासवर्ड वापस पाएँ" : "PASSWORD RECOVERY") : mode === "reset" ? (hi ? "नया पासवर्ड सेट करें" : "SET A NEW PASSWORD") : (hi ? "अपना खाता बनाएँ" : "CREATE YOUR ACCOUNT")}</span>
         <h2>{mode === "signin" ? (hi ? "FindVia में लॉगिन करें" : "Log in to FindVia") : mode === "forgot" ? (hi ? "रीसेट लिंक मँगाएँ" : "Reset your password") : mode === "reset" ? (hi ? "नया पासवर्ड लिखें" : "Choose a new password") : (hi ? "Provider अकाउंट बनाएँ" : "Create your provider account")}</h2>
         <p>{mode === "forgot" ? (hi ? "आपके ईमेल पर सुरक्षित reset link भेजेंगे।" : "We’ll email you a secure password reset link.") : mode === "reset" ? (hi ? "कम से कम 8 अक्षरों का नया पासवर्ड चुनें।" : "Choose a new password with at least 8 characters.") : (hi ? "ईमेल और पासवर्ड से सुरक्षित प्रवेश करें।" : "Use your email and password to continue securely.")}</p>
+        {(message || authMessage) && <div className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status" aria-live="polite">{message || authMessage}</div>}
         <form onSubmit={submit} noValidate>
           {mode === "signup" && <>
             <label htmlFor="auth-full-name">{hi ? "पूरा नाम" : "Full name"}</label>
@@ -393,7 +392,6 @@ function AccountAccessPage({ language, authMessage, setAuthMessage, initialMode 
           {mode !== "forgot" && <><label htmlFor="auth-password">{mode === "reset" ? (hi ? "नया पासवर्ड" : "New password") : (hi ? "पासवर्ड" : "Password")}</label><input className="form-control" id="auth-password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} minLength="8" value={password} onChange={e => setPassword(e.target.value)} required /></>}
           <button className="button button-primary full-button" type="button" disabled={busy} onClick={mode === "forgot" ? () => { void sendResetLink(); } : event => { event.preventDefault(); void submit(event); }}>{busy ? (hi ? "कृपया प्रतीक्षा करें…" : "Please wait…") : (mode === "signin" ? (hi ? "लॉगिन करें" : "Log in") : mode === "signup" ? (hi ? "खाता बनाएँ" : "Create account") : mode === "forgot" ? (hi ? "रीसेट लिंक भेजें" : "Send reset link") : (hi ? "पासवर्ड बदलें" : "Update password"))} <ArrowRight size={16} /></button>
         </form>
-        {(message || authMessage) && <div className={needsEmailConfirm ? "preview-notice account-notice" : "account-auth-message"} role="status">{message || authMessage}</div>}
         <div className="account-mode-links">{mode === "signin" && <button type="button" onClick={() => { setMode("forgot"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "पासवर्ड भूल गए?" : "Forgot password?"}</button>}{mode !== "signin" && <button type="button" onClick={() => { setMode("signin"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "लॉगिन पर वापस जाएँ" : "Back to log in"}</button>}{mode === "signin" && <button type="button" onClick={() => { setMode("signup"); setMessage(""); setNeedsEmailConfirm(false); }}>{hi ? "नया खाता बनाएँ" : "Create an account"}</button>}</div>
         <p className="account-security-note"><ShieldCheck size={15} /> {hi ? "पासवर्ड सुरक्षित रूप से संभाला जाता है।" : "Passwords are handled securely and are never stored in this app."}</p>
       </div>
